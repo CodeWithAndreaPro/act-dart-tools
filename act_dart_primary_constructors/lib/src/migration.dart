@@ -2,6 +2,7 @@ import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 
 import 'discovery.dart';
 import 'source_edit.dart';
@@ -86,6 +87,10 @@ enum DeclarationSkipReason {
   unsupportedParameterShape(
     'unsupportedParameterShape',
     'This constructor parameter shape is not supported.',
+  ),
+  unsafeInitializerDependency(
+    'unsafeInitializerDependency',
+    'Initializer field assignments must depend only on constructor parameters.',
   ),
   unsupportedInitializer(
     'unsupportedInitializer',
@@ -293,28 +298,18 @@ DeclarationSkipReason? _primaryConstructorSkipReason({
   if (constructor.body is! EmptyFunctionBody) {
     return DeclarationSkipReason.nonEmptyConstructorBody;
   }
-  final privateFieldInitializersByName = <String, String>{};
-  for (final initializer in constructor.initializers) {
-    if (initializer is RedirectingConstructorInvocation) {
-      return DeclarationSkipReason.redirectingConstructor;
-    }
-    if (initializer is SuperConstructorInvocation &&
-        initializer.constructorName != null) {
-      return DeclarationSkipReason.namedSuperInitializer;
-    }
-    if (initializer is! ConstructorFieldInitializer) {
-      return DeclarationSkipReason.unsupportedInitializer;
-    }
-    final fieldName = initializer.fieldName.token.lexeme;
-    final expression = initializer.expression;
-    if (!fieldName.startsWith('_') || expression is! SimpleIdentifier) {
-      return DeclarationSkipReason.unsupportedInitializer;
-    }
-    if (privateFieldInitializersByName.containsKey(fieldName)) {
-      return DeclarationSkipReason.unsupportedInitializer;
-    }
-    privateFieldInitializersByName[fieldName] = expression.token.lexeme;
+  final initializerClassification = _classifyConstructorInitializers(
+    source: source,
+    declaration: declaration,
+    constructor: constructor,
+    parameterNames: _constructorParameterNames(constructor),
+  );
+  if (initializerClassification.skipReason case final skipReason?) {
+    return skipReason;
   }
+  final initializerPlan = initializerClassification.plan!;
+  final privateFieldInitializersByName =
+      initializerPlan.privateFieldInitializersByName;
 
   if (generativeConstructors.any(
     (constructor) =>
@@ -348,6 +343,11 @@ DeclarationSkipReason? _primaryConstructorSkipReason({
 
   if (usedPrivateInitializers.length != privateFieldInitializersByName.length) {
     return DeclarationSkipReason.unsupportedInitializer;
+  }
+  for (final fieldInitializer in initializerPlan.fieldInitializers) {
+    if (usedFieldNames.contains(fieldInitializer.fieldName)) {
+      return DeclarationSkipReason.unsupportedInitializer;
+    }
   }
 
   return null;
@@ -511,14 +511,23 @@ _ClassMigrationPlan? _planClassMigration({
   }
 
   final fieldsByName = _eligibleFieldsByName(declaration, source);
-  final privateFieldInitializersByName = _privateFieldInitializerParameterNames(
-    constructor,
+  final initializerClassification = _classifyConstructorInitializers(
+    source: source,
+    declaration: declaration,
+    constructor: constructor,
+    parameterNames: _constructorParameterNames(constructor),
   );
-  if (privateFieldInitializersByName == null) {
+  final initializerPlan = initializerClassification.plan;
+  if (initializerPlan == null) {
     return null;
   }
+  final privateFieldInitializersByName =
+      initializerPlan.privateFieldInitializersByName;
   final parameterEdits = <SourceEdit>[];
-  final removableMembers = <ClassMember>{constructor};
+  final retainedInitializers = initializerPlan.retainedInitializers;
+  final removableMembers = <ClassMember>{
+    if (retainedInitializers.isEmpty) constructor,
+  };
   final fieldNames = <String>{};
   final usedPrivateInitializers = <String>{};
   final parametersOffset = constructor.parameters.offset;
@@ -548,6 +557,11 @@ _ClassMigrationPlan? _planClassMigration({
   if (usedPrivateInitializers.length != privateFieldInitializersByName.length) {
     return null;
   }
+  for (final fieldInitializer in initializerPlan.fieldInitializers) {
+    if (fieldNames.contains(fieldInitializer.fieldName)) {
+      return null;
+    }
+  }
 
   final primaryParameters =
       constructorParameters.isEmpty && constructor.constKeyword == null
@@ -566,9 +580,16 @@ _ClassMigrationPlan? _planClassMigration({
         length: 0,
         replacement: primaryParameters,
       ),
+    for (final fieldInitializer in initializerPlan.fieldInitializers)
+      SourceEdit(
+        offset: fieldInitializer.variable.end,
+        length: 0,
+        replacement: ' = ${_sourceFor(source, fieldInitializer.expression)}',
+      ),
   ];
 
-  if (declaration.body.members.length == removableMembers.length) {
+  if (retainedInitializers.isEmpty &&
+      declaration.body.members.length == removableMembers.length) {
     edits.add(
       SourceEdit(
         offset: declaration.body.offset,
@@ -581,6 +602,20 @@ _ClassMigrationPlan? _planClassMigration({
       final range = _memberRemovalRange(source, member);
       edits.add(
         SourceEdit(offset: range.offset, length: range.length, replacement: ''),
+      );
+    }
+    if (retainedInitializers.isNotEmpty) {
+      final range = _memberRemovalRange(source, constructor);
+      edits.add(
+        SourceEdit(
+          offset: range.offset,
+          length: range.length,
+          replacement: _primaryConstructorBodySource(
+            source: source,
+            constructor: constructor,
+            retainedInitializers: retainedInitializers,
+          ),
+        ),
       );
     }
   }
@@ -648,6 +683,7 @@ Map<String, _EligibleField> _eligibleFieldsByName(
     }
     fields[variable.name.lexeme] = _EligibleField(
       declaration: member,
+      variable: variable,
       typeSource: _sourceFor(source, fieldList.type!),
       declaringKeyword: fieldList.isFinal ? 'final' : 'var',
     );
@@ -747,26 +783,118 @@ _ParameterMigrationPlan? _planPrivateFieldParameter({
   );
 }
 
-Map<String, String>? _privateFieldInitializerParameterNames(
-  ConstructorDeclaration constructor,
-) {
-  final initializers = <String, String>{};
+_ConstructorInitializerClassification _classifyConstructorInitializers({
+  required String source,
+  required ClassDeclaration declaration,
+  required ConstructorDeclaration constructor,
+  required Set<String> parameterNames,
+}) {
+  final privateFieldInitializersByName = <String, String>{};
+  final fieldInitializers = <_FieldInitializerMigration>[];
+  final retainedInitializers = <ConstructorInitializer>[];
+  final initializedFieldNames = <String>{};
+
   for (final initializer in constructor.initializers) {
-    if (initializer is! ConstructorFieldInitializer) {
-      return null;
+    if (initializer is RedirectingConstructorInvocation) {
+      return const _ConstructorInitializerClassification.skip(
+        DeclarationSkipReason.redirectingConstructor,
+      );
     }
+    if (initializer is SuperConstructorInvocation) {
+      if (initializer.constructorName != null) {
+        return const _ConstructorInitializerClassification.skip(
+          DeclarationSkipReason.namedSuperInitializer,
+        );
+      }
+      retainedInitializers.add(initializer);
+      continue;
+    }
+    if (initializer is AssertInitializer) {
+      retainedInitializers.add(initializer);
+      continue;
+    }
+    if (initializer is! ConstructorFieldInitializer) {
+      return const _ConstructorInitializerClassification.skip(
+        DeclarationSkipReason.unsupportedInitializer,
+      );
+    }
+
     final fieldName = initializer.fieldName.token.lexeme;
     final expression = initializer.expression;
-    if (!fieldName.startsWith('_') || expression is! SimpleIdentifier) {
-      return null;
+    if (fieldName.startsWith('_') && expression is SimpleIdentifier) {
+      if (privateFieldInitializersByName.containsKey(fieldName)) {
+        return const _ConstructorInitializerClassification.skip(
+          DeclarationSkipReason.unsupportedInitializer,
+        );
+      }
+      privateFieldInitializersByName[fieldName] = expression.token.lexeme;
+      continue;
     }
-    final parameterName = expression.token.lexeme;
-    if (initializers.containsKey(fieldName)) {
-      return null;
+
+    final fieldSkipReason = _mappedFieldSkipReason(declaration, fieldName);
+    if (fieldSkipReason != null) {
+      return _ConstructorInitializerClassification.skip(fieldSkipReason);
     }
-    initializers[fieldName] = parameterName;
+    if (!_dependsOnlyOnConstructorParameters(expression, parameterNames)) {
+      return const _ConstructorInitializerClassification.skip(
+        DeclarationSkipReason.unsafeInitializerDependency,
+      );
+    }
+    if (!initializedFieldNames.add(fieldName)) {
+      return const _ConstructorInitializerClassification.skip(
+        DeclarationSkipReason.unsupportedInitializer,
+      );
+    }
+    final field = _fieldDeclarationFor(declaration, fieldName);
+    if (field == null) {
+      return const _ConstructorInitializerClassification.skip(
+        DeclarationSkipReason.missingField,
+      );
+    }
+    fieldInitializers.add(
+      _FieldInitializerMigration(
+        fieldName: fieldName,
+        variable: field.$3,
+        expression: expression,
+      ),
+    );
   }
-  return initializers;
+
+  return _ConstructorInitializerClassification.plan(
+    _ConstructorInitializerPlan(
+      privateFieldInitializersByName: privateFieldInitializersByName,
+      fieldInitializers: fieldInitializers,
+      retainedInitializers: retainedInitializers,
+    ),
+  );
+}
+
+Set<String> _constructorParameterNames(ConstructorDeclaration constructor) {
+  return {
+    for (final parameter in constructor.parameters.parameters)
+      if (parameter.name case final name?) name.lexeme,
+  };
+}
+
+bool _dependsOnlyOnConstructorParameters(
+  Expression expression,
+  Set<String> parameterNames,
+) {
+  final visitor = _ParameterOnlyExpressionVisitor(parameterNames);
+  expression.accept(visitor);
+  return visitor.isSafe;
+}
+
+String _primaryConstructorBodySource({
+  required String source,
+  required ConstructorDeclaration constructor,
+  required List<ConstructorInitializer> retainedInitializers,
+}) {
+  final indent = _lineIndentation(source, constructor.offset);
+  final initializers = retainedInitializers
+      .map((initializer) => _sourceFor(source, initializer))
+      .join(', ');
+  return '${indent}this : $initializers;\n';
 }
 
 String _declaringParameterSource(_EligibleField field, String fieldName) {
@@ -824,6 +952,14 @@ ParseStringResult _parseSource(
 
 String _sourceFor(String source, AstNode node) {
   return source.substring(node.offset, node.end);
+}
+
+String _lineIndentation(String source, int offset) {
+  var start = offset;
+  while (start > 0 && source.codeUnitAt(start - 1) != 10) {
+    start--;
+  }
+  return source.substring(start, offset);
 }
 
 _SourceRange _memberRemovalRange(String source, ClassMember member) {
@@ -901,14 +1037,94 @@ class _ParameterMigrationPlan {
   final List<String> privateInitializerFieldNames;
 }
 
+class _ConstructorInitializerClassification {
+  const _ConstructorInitializerClassification.plan(this.plan)
+    : skipReason = null;
+
+  const _ConstructorInitializerClassification.skip(this.skipReason)
+    : plan = null;
+
+  final _ConstructorInitializerPlan? plan;
+  final DeclarationSkipReason? skipReason;
+}
+
+class _ConstructorInitializerPlan {
+  const _ConstructorInitializerPlan({
+    required this.privateFieldInitializersByName,
+    required this.fieldInitializers,
+    required this.retainedInitializers,
+  });
+
+  final Map<String, String> privateFieldInitializersByName;
+  final List<_FieldInitializerMigration> fieldInitializers;
+  final List<ConstructorInitializer> retainedInitializers;
+}
+
+class _FieldInitializerMigration {
+  const _FieldInitializerMigration({
+    required this.fieldName,
+    required this.variable,
+    required this.expression,
+  });
+
+  final String fieldName;
+  final VariableDeclaration variable;
+  final Expression expression;
+}
+
+class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
+  _ParameterOnlyExpressionVisitor(this.parameterNames);
+
+  final Set<String> parameterNames;
+  bool isSafe = true;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (!isSafe || _isNonReferenceIdentifier(node)) {
+      return;
+    }
+    if (!parameterNames.contains(node.token.lexeme)) {
+      isSafe = false;
+    }
+  }
+
+  @override
+  void visitSuperExpression(SuperExpression node) {
+    isSafe = false;
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) {
+    isSafe = false;
+  }
+
+  bool _isNonReferenceIdentifier(SimpleIdentifier node) {
+    final parent = node.parent;
+    if (parent is PrefixedIdentifier && identical(parent.identifier, node)) {
+      return true;
+    }
+    if (parent is PropertyAccess && identical(parent.propertyName, node)) {
+      return true;
+    }
+    if (parent is MethodInvocation &&
+        identical(parent.methodName, node) &&
+        parent.target != null) {
+      return true;
+    }
+    return false;
+  }
+}
+
 class _EligibleField {
   const _EligibleField({
     required this.declaration,
+    required this.variable,
     required this.typeSource,
     required this.declaringKeyword,
   });
 
   final FieldDeclaration declaration;
+  final VariableDeclaration variable;
   final String typeSource;
   final String declaringKeyword;
 }

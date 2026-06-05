@@ -611,6 +611,139 @@ class User {
         originalSource,
       );
     });
+
+    test('moves safe initializer-list field assignments to fields', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/score.dart', '''
+class Score {
+  final int base;
+  final int bonus;
+  final int total;
+
+  Score(this.base, this.bonus) : total = base + bonus;
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/score.dart',
+        declarationName: 'Score',
+      );
+      expect(await _formattedFile(root, 'lib/score.dart'), '''
+class Score(final int base, final int bonus) {
+  final int total = base + bonus;
+}
+''');
+    });
+
+    test('retains assert initializers in primary constructor body', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/checked.dart', '''
+class Checked {
+  final String id;
+
+  Checked(this.id) : assert(id.isNotEmpty);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/checked.dart',
+        declarationName: 'Checked',
+      );
+      expect(await _formattedFile(root, 'lib/checked.dart'), '''
+class Checked(final String id) {
+  this : assert(id.isNotEmpty);
+}
+''');
+    });
+
+    test(
+      'retains unnamed super initializers in primary constructor body',
+      () async {
+        final root = await _createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        _writeFile(root, 'lib/button.dart', '''
+class Button extends Widget {
+  final String label;
+
+  Button(this.label) : super(label);
+}
+
+class Widget {
+  Widget(Object label);
+}
+''');
+
+        final result = await _runCli([
+          'migrate',
+          '--root',
+          root.path,
+          '--json',
+        ]);
+
+        _expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/button.dart',
+          declarationName: 'Button',
+        );
+        expect(await _formattedFile(root, 'lib/button.dart'), '''
+class Button(final String label) extends Widget {
+  this : super(label);
+}
+
+class Widget {
+  Widget(Object label);
+}
+''');
+      },
+    );
+
+    test('preserves retained initializer relative order', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/ordered.dart', '''
+class Ordered extends Base {
+  final int value;
+  final int doubled;
+
+  Ordered(this.value)
+      : assert(value > 0),
+        doubled = value * 2,
+        super(value),
+        assert(value.isFinite);
+}
+
+class Base {
+  Base(Object value);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/ordered.dart',
+        declarationName: 'Ordered',
+      );
+      expect(await _formattedFile(root, 'lib/ordered.dart'), '''
+class Ordered(final int value) extends Base {
+  final int doubled = value * 2;
+
+  this : assert(value > 0), super(value), assert(value.isFinite);
+}
+
+class Base {
+  Base(Object value);
+}
+''');
+    });
   });
 
   group('class primary constructor skip reporting', () {
@@ -884,7 +1017,7 @@ class UnsupportedParameter {
 class UnsupportedInitializer {
   final String id;
 
-  UnsupportedInitializer(this.id) : assert(id.isNotEmpty);
+  UnsupportedInitializer(this.id) : id = id;
 }
 ''';
 
@@ -894,6 +1027,26 @@ class UnsupportedInitializer {
         declarationName: 'UnsupportedInitializer',
         reason: 'unsupportedInitializer',
         message: 'This constructor initializer is not supported.',
+      );
+    });
+
+    test('skips initializer dependencies on instance state precisely', () async {
+      const originalSource = '''
+class UnsafeInitializerDependency {
+  final int base;
+  final int total;
+
+  UnsafeInitializerDependency(this.base) : total = this.base + 1;
+}
+''';
+
+      await _expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/initializer_dependency.dart',
+        originalSource: originalSource,
+        declarationName: 'UnsafeInitializerDependency',
+        reason: 'unsafeInitializerDependency',
+        message:
+            'Initializer field assignments must depend only on constructor parameters.',
       );
     });
 

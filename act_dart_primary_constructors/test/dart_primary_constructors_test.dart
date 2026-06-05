@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart_primary_constructors/dart_primary_constructors.dart';
 import 'package:dart_primary_constructors/src/discovery.dart';
+import 'package:dart_primary_constructors/src/source_edit.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -244,6 +245,137 @@ void main() {
     });
   });
 
+  group('source edits', () {
+    test('applies insertions, replacements, and deletions descending', () {
+      final result = applySourceEdits('abcdef', const [
+        SourceEdit(offset: 1, length: 0, replacement: 'X'),
+        SourceEdit(offset: 3, length: 1, replacement: 'Y'),
+        SourceEdit(offset: 5, length: 1, replacement: ''),
+      ]);
+
+      expect(result, 'aXbcYe');
+    });
+
+    test('rejects overlapping edits', () {
+      expect(
+        () => applySourceEdits('abcdef', const [
+          SourceEdit(offset: 1, length: 3, replacement: 'X'),
+          SourceEdit(offset: 3, length: 1, replacement: 'Y'),
+        ]),
+        throwsA(isA<SourceEditException>()),
+      );
+    });
+  });
+
+  group('class primary constructor migration', () {
+    test('migrates final field-formal parameters', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/user.dart', '''
+class User {
+  final String id;
+  final int age;
+
+  User(this.id, this.age);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], ['lib/user.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/user.dart',
+          'declarationKind': 'class',
+          'declarationName': 'User',
+          'transform': 'primaryConstructor',
+          'offset': 0,
+        },
+      ]);
+      expect(decoded['transformCounts'], {'primaryConstructor': 1});
+      expect(await _formattedFile(root, 'lib/user.dart'), '''
+class User(final String id, final int age);
+''');
+    });
+
+    test('migrates mutable field-formal parameters', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/counter.dart', '''
+class Counter {
+  int count;
+
+  Counter(this.count);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      expect(await _formattedFile(root, 'lib/counter.dart'), '''
+class Counter(var int count);
+''');
+    });
+
+    test('preserves const constructors as explicit primary const', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/palette.dart', '''
+class Palette {
+  final String primary;
+
+  const Palette(this.primary);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      expect(await _formattedFile(root, 'lib/palette.dart'), '''
+class const Palette(final String primary);
+''');
+    });
+
+    test('dry run reports migrations without writing files', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class User {
+  final String id;
+
+  User(this.id);
+}
+''';
+      _writeFile(root, 'lib/user.dart', originalSource);
+
+      final result = await _runCli([
+        'migrate',
+        '--root',
+        root.path,
+        '--dry-run',
+        '--json',
+      ]);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['dryRun'], isTrue);
+      expect(decoded['changedFiles'], ['lib/user.dart']);
+      expect(decoded['transformCounts'], {'primaryConstructor': 1});
+      expect(
+        File(
+          '${root.path}${Platform.pathSeparator}lib/user.dart',
+        ).readAsStringSync(),
+        originalSource,
+      );
+    });
+  });
+
   group('invalid root', () {
     test('missing root returns invalid-root JSON error', () async {
       final result = await _runCli(['migrate', '--json']);
@@ -311,6 +443,19 @@ Future<ProcessResult> _runCli(List<String> arguments) {
     'dart_primary_constructors',
     ...arguments,
   ]);
+}
+
+Future<String> _formattedFile(Directory root, String relativePath) async {
+  final file = File(
+    '${root.path}${Platform.pathSeparator}${_systemPath(relativePath)}',
+  );
+  final result = await Process.run(Platform.resolvedExecutable, [
+    'format',
+    '--enable-experiment=primary-constructors',
+    file.path,
+  ]);
+  expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+  return file.readAsStringSync();
 }
 
 String _normalizedPath(Directory directory) {

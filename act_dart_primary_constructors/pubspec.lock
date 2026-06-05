@@ -10,7 +10,7 @@ packages:
     source: hosted
     version: "101.0.0"
   analyzer:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: analyzer
       sha256: aa6a9365901532864cae51208f2a6bb18dd01972ebead19c431efc848f60080b

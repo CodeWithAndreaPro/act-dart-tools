@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 
 import 'discovery.dart';
 import 'exit_codes.dart';
+import 'migration.dart';
 import 'report.dart';
 import 'version.dart';
 
@@ -90,11 +91,33 @@ Future<int> _runMigrate(
   }
 
   final discovery = discoverTargetPackageFiles(io.Directory(rootValidation));
+  late final MigrationRunResult migration;
+  try {
+    migration = migrateTargetPackageFiles(
+      files: discovery.dartFiles,
+      dryRun: results.flag('dry-run'),
+    );
+  } on MigrationFailure catch (error) {
+    return _writeError(
+      CliErrorReport(
+        code: error.isInputParseFailure ? 'parseFailure' : 'validationFailure',
+        message: error.message,
+      ),
+      error.isInputParseFailure ? exitParseFailure : exitValidationFailure,
+      json: results.flag('json'),
+      stdout: stdout,
+      stderr: stderr,
+    );
+  }
+
   final report = MigrationReport(
     root: rootValidation,
     mode: results.option('mode') ?? 'safe',
     dryRun: results.flag('dry-run'),
+    changedFiles: migration.changedFiles,
+    migratedDeclarations: migration.migratedDeclarations,
     skippedFiles: discovery.skippedFileReports,
+    transformCounts: migration.transformCounts,
     skipReasonCounts: discovery.skipReasonCounts,
   );
 

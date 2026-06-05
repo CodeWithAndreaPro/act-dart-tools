@@ -2,6 +2,7 @@ import 'dart:io' as io;
 
 import 'package:args/args.dart';
 
+import 'discovery.dart';
 import 'exit_codes.dart';
 import 'report.dart';
 import 'version.dart';
@@ -88,16 +89,23 @@ Future<int> _runMigrate(
     );
   }
 
+  final discovery = discoverTargetPackageFiles(io.Directory(rootValidation));
   final report = MigrationReport(
     root: rootValidation,
     mode: results.option('mode') ?? 'safe',
     dryRun: results.flag('dry-run'),
+    skippedFiles: discovery.skippedFileReports,
+    skipReasonCounts: discovery.skipReasonCounts,
   );
 
   if (results.flag('json')) {
     stdout.writeln(report.toJsonString());
   } else {
-    _writeTextReport(report, stdout);
+    _writeTextReport(
+      report,
+      stdout,
+      includeSkipped: results.flag('include-skipped'),
+    );
   }
   return exitSuccess;
 }
@@ -150,7 +158,11 @@ int _writeError(
   return exitCode;
 }
 
-void _writeTextReport(MigrationReport report, StringSink stdout) {
+void _writeTextReport(
+  MigrationReport report,
+  StringSink stdout, {
+  required bool includeSkipped,
+}) {
   stdout
     ..writeln('Dart primary constructors migration')
     ..writeln('Tool version: $packageVersion')
@@ -160,5 +172,18 @@ void _writeTextReport(MigrationReport report, StringSink stdout) {
     ..writeln('Formatted: false')
     ..writeln('Changed files: ${report.changedFiles.length}')
     ..writeln('Migrated declarations: ${report.migratedDeclarations.length}')
-    ..writeln('Skipped declarations: ${report.skippedDeclarations.length}');
+    ..writeln('Skipped declarations: ${report.skippedDeclarations.length}')
+    ..writeln('Skipped files: ${report.skippedFiles.length}');
+
+  if (includeSkipped && report.skippedFiles.isNotEmpty) {
+    stdout.writeln('Skipped file details:');
+    for (final skippedFile in report.skippedFiles) {
+      if (skippedFile case {
+        'path': final String path,
+        'reason': final String reason,
+      }) {
+        stdout.writeln('- $path ($reason)');
+      }
+    }
+  }
 }

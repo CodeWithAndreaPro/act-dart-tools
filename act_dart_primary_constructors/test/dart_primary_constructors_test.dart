@@ -341,6 +341,243 @@ class const Palette(final String primary);
 ''');
     });
 
+    test('preserves named parameters and required markers', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/person.dart', '''
+class Person {
+  final String name;
+  final int age;
+
+  Person({required this.name, this.age = 0});
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/person.dart',
+        declarationName: 'Person',
+      );
+      expect(await _formattedFile(root, 'lib/person.dart'), '''
+class Person({required final String name, final int age = 0});
+''');
+    });
+
+    test('preserves optional positional parameters and defaults', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/range.dart', '''
+class Range {
+  final int start;
+  final int end;
+
+  Range([this.start = 0, this.end = 10]);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/range.dart',
+        declarationName: 'Range',
+      );
+      expect(await _formattedFile(root, 'lib/range.dart'), '''
+class Range([final int start = 0, final int end = 10]);
+''');
+    });
+
+    test('preserves positional order and named grouping', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/item.dart', '''
+class Item {
+  final int id;
+  final String name;
+  final bool active;
+
+  Item(this.id, {required this.name, this.active = true});
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/item.dart',
+        declarationName: 'Item',
+      );
+      expect(await _formattedFile(root, 'lib/item.dart'), '''
+class Item(
+  final int id, {
+  required final String name,
+  final bool active = true,
+});
+''');
+    });
+
+    test('preserves type parameters modifiers and clauses', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/box.dart', '''
+abstract class Box<T extends Object> extends Base<T> implements Named {
+  final T value;
+
+  Box(this.value);
+}
+
+abstract class Base<T> {}
+
+abstract class Named {}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/box.dart',
+        declarationName: 'Box',
+      );
+      expect(await _formattedFile(root, 'lib/box.dart'), '''
+abstract class Box<T extends Object>(final T value)
+    extends Base<T>
+    implements Named;
+
+abstract class Base<T> {}
+
+abstract class Named {}
+''');
+    });
+
+    test('migrates private field-formal parameters', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/secret.dart', '''
+class _Secret {
+  final String _value;
+
+  _Secret(this._value);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/secret.dart',
+        declarationName: '_Secret',
+      );
+      expect(await _formattedFile(root, 'lib/secret.dart'), '''
+class _Secret(final String _value);
+''');
+    });
+
+    test('preserves public names for private named fields', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/session.dart', '''
+class Session {
+  final String _id;
+
+  Session({required String id}) : _id = id;
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/session.dart',
+        declarationName: 'Session',
+      );
+      expect(await _formattedFile(root, 'lib/session.dart'), '''
+class Session({required final String _id});
+''');
+    });
+
+    test('preserves simple super parameters unchanged', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/tile.dart', '''
+class Tile extends Widget {
+  final String title;
+
+  Tile(super.key, this.title);
+}
+
+class Widget {
+  Widget(Object? key);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/tile.dart',
+        declarationName: 'Tile',
+      );
+      expect(await _formattedFile(root, 'lib/tile.dart'), '''
+class Tile(super.key, final String title) extends Widget;
+
+class Widget {
+  Widget(Object? key);
+}
+''');
+    });
+
+    test(
+      'keeps explicit parentheses for zero-parameter const constructors',
+      () async {
+        final root = await _createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        _writeFile(root, 'lib/marker.dart', '''
+class Marker {
+  const Marker();
+}
+''');
+
+        final result = await _runCli([
+          'migrate',
+          '--root',
+          root.path,
+          '--json',
+        ]);
+
+        _expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/marker.dart',
+          declarationName: 'Marker',
+        );
+        expect(await _formattedFile(root, 'lib/marker.dart'), '''
+class const Marker();
+''');
+      },
+    );
+
+    test('collapses empty non-const constructor boilerplate', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/empty.dart', '''
+class Empty {
+  Empty();
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/empty.dart',
+        declarationName: 'Empty',
+      );
+      expect(await _formattedFile(root, 'lib/empty.dart'), '''
+class Empty;
+''');
+    });
+
     test('dry run reports migrations without writing files', () async {
       final root = await _createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -443,6 +680,28 @@ Future<ProcessResult> _runCli(List<String> arguments) {
     'dart_primary_constructors',
     ...arguments,
   ]);
+}
+
+Map<String, Object?> _expectSinglePrimaryConstructorMigration(
+  ProcessResult result, {
+  required String path,
+  required String declarationName,
+}) {
+  expect(result.exitCode, exitSuccess);
+  expect(result.stderr, isEmpty);
+  final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+  expect(decoded['changedFiles'], [path]);
+  expect(decoded['migratedDeclarations'], [
+    {
+      'path': path,
+      'declarationKind': 'class',
+      'declarationName': declarationName,
+      'transform': 'primaryConstructor',
+      'offset': 0,
+    },
+  ]);
+  expect(decoded['transformCounts'], {'primaryConstructor': 1});
+  return decoded;
 }
 
 Future<String> _formattedFile(Directory root, String relativePath) async {

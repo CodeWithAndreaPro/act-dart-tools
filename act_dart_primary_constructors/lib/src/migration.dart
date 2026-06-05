@@ -121,41 +121,56 @@ _ClassMigrationPlan? _planClassMigration({
     return null;
   }
 
-  final fieldParameters = constructor.parameters.parameters;
-  if (fieldParameters.isEmpty ||
-      fieldParameters.any((parameter) => parameter is! FieldFormalParameter)) {
+  final constructorParameters = constructor.parameters.parameters;
+  if (constructorParameters.isEmpty &&
+      constructor.constKeyword == null &&
+      declaration.body.members.length != 1) {
     return null;
   }
 
   final fieldsByName = _eligibleFieldsByName(declaration, source);
+  final privateFieldInitializersByName = _privateFieldInitializerParameterNames(
+    constructor,
+  );
+  if (privateFieldInitializersByName == null) {
+    return null;
+  }
   final parameterEdits = <SourceEdit>[];
   final removableMembers = <ClassMember>{constructor};
   final fieldNames = <String>{};
+  final usedPrivateInitializers = <String>{};
   final parametersOffset = constructor.parameters.offset;
   final parametersSource = _sourceFor(source, constructor.parameters);
 
-  for (final parameter in fieldParameters.cast<FieldFormalParameter>()) {
-    final fieldName = parameter.name.lexeme;
-    final field = fieldsByName[fieldName];
-    if (field == null || !fieldNames.add(fieldName)) {
-      return null;
-    }
-    if (!_isSimpleFieldFormalParameter(parameter)) {
-      return null;
-    }
-    removableMembers.add(field.declaration);
-    final replacement =
-        '${field.declaringKeyword} ${field.typeSource} $fieldName';
-    parameterEdits.add(
-      SourceEdit(
-        offset: parameter.thisKeyword.offset - parametersOffset,
-        length: parameter.name.end - parameter.thisKeyword.offset,
-        replacement: replacement,
-      ),
+  for (final parameter in constructorParameters) {
+    final parameterPlan = _planConstructorParameter(
+      source: source,
+      parameter: parameter,
+      fieldsByName: fieldsByName,
+      privateFieldInitializersByName: privateFieldInitializersByName,
+      parametersOffset: parametersOffset,
     );
+    if (parameterPlan == null) {
+      return null;
+    }
+    for (final fieldName in parameterPlan.fieldNames) {
+      if (!fieldNames.add(fieldName)) {
+        return null;
+      }
+    }
+    parameterEdits.addAll(parameterPlan.edits);
+    removableMembers.addAll(parameterPlan.removableFields);
+    usedPrivateInitializers.addAll(parameterPlan.privateInitializerFieldNames);
   }
 
-  final primaryParameters = applySourceEdits(parametersSource, parameterEdits);
+  if (usedPrivateInitializers.length != privateFieldInitializersByName.length) {
+    return null;
+  }
+
+  final primaryParameters =
+      constructorParameters.isEmpty && constructor.constKeyword == null
+      ? null
+      : applySourceEdits(parametersSource, parameterEdits);
   final edits = <SourceEdit>[
     if (constructor.constKeyword != null)
       SourceEdit(
@@ -163,11 +178,12 @@ _ClassMigrationPlan? _planClassMigration({
         length: 0,
         replacement: ' const',
       ),
-    SourceEdit(
-      offset: declaration.namePart.end,
-      length: 0,
-      replacement: primaryParameters,
-    ),
+    if (primaryParameters != null)
+      SourceEdit(
+        offset: declaration.namePart.end,
+        length: 0,
+        replacement: primaryParameters,
+      ),
   ];
 
   if (declaration.body.members.length == removableMembers.length) {
@@ -215,7 +231,6 @@ ConstructorDeclaration? _eligibleUnnamedConstructor(
     }
     if (unnamed != null ||
         constructor.redirectedConstructor != null ||
-        constructor.initializers.isNotEmpty ||
         constructor.body is! EmptyFunctionBody) {
       return null;
     }
@@ -258,7 +273,142 @@ Map<String, _EligibleField> _eligibleFieldsByName(
   return fields;
 }
 
+_ParameterMigrationPlan? _planConstructorParameter({
+  required String source,
+  required FormalParameter parameter,
+  required Map<String, _EligibleField> fieldsByName,
+  required Map<String, String> privateFieldInitializersByName,
+  required int parametersOffset,
+}) {
+  if (parameter is FieldFormalParameter) {
+    return _planFieldFormalParameter(
+      parameter: parameter,
+      fieldsByName: fieldsByName,
+      parametersOffset: parametersOffset,
+    );
+  }
+  if (parameter is RegularFormalParameter) {
+    return _planPrivateFieldParameter(
+      source: source,
+      parameter: parameter,
+      fieldsByName: fieldsByName,
+      privateFieldInitializersByName: privateFieldInitializersByName,
+      parametersOffset: parametersOffset,
+    );
+  }
+  if (parameter is SuperFormalParameter &&
+      _isSimpleSuperFormalParameter(parameter)) {
+    return const _ParameterMigrationPlan();
+  }
+  return null;
+}
+
+_ParameterMigrationPlan? _planFieldFormalParameter({
+  required FieldFormalParameter parameter,
+  required Map<String, _EligibleField> fieldsByName,
+  required int parametersOffset,
+}) {
+  final fieldName = parameter.name.lexeme;
+  final field = fieldsByName[fieldName];
+  if (field == null || !_isSimpleFieldFormalParameter(parameter)) {
+    return null;
+  }
+  return _ParameterMigrationPlan(
+    edits: [
+      SourceEdit(
+        offset: parameter.thisKeyword.offset - parametersOffset,
+        length: parameter.name.end - parameter.thisKeyword.offset,
+        replacement: _declaringParameterSource(field, fieldName),
+      ),
+    ],
+    removableFields: [field.declaration],
+    fieldNames: [fieldName],
+  );
+}
+
+_ParameterMigrationPlan? _planPrivateFieldParameter({
+  required String source,
+  required RegularFormalParameter parameter,
+  required Map<String, _EligibleField> fieldsByName,
+  required Map<String, String> privateFieldInitializersByName,
+  required int parametersOffset,
+}) {
+  final parameterName = parameter.name?.lexeme;
+  final parameterType = parameter.type;
+  if (parameterName == null ||
+      parameterName.startsWith('_') ||
+      parameterType == null ||
+      !parameter.isNamed ||
+      !_isSimpleRegularFormalParameter(parameter)) {
+    return null;
+  }
+
+  final fieldName = '_$parameterName';
+  final field = fieldsByName[fieldName];
+  if (field == null ||
+      privateFieldInitializersByName[fieldName] != parameterName ||
+      _sourceFor(source, parameterType) != field.typeSource) {
+    return null;
+  }
+
+  return _ParameterMigrationPlan(
+    edits: [
+      SourceEdit(
+        offset: parameterType.offset - parametersOffset,
+        length: parameter.name!.end - parameterType.offset,
+        replacement: _declaringParameterSource(field, fieldName),
+      ),
+    ],
+    removableFields: [field.declaration],
+    fieldNames: [fieldName],
+    privateInitializerFieldNames: [fieldName],
+  );
+}
+
+Map<String, String>? _privateFieldInitializerParameterNames(
+  ConstructorDeclaration constructor,
+) {
+  final initializers = <String, String>{};
+  for (final initializer in constructor.initializers) {
+    if (initializer is! ConstructorFieldInitializer) {
+      return null;
+    }
+    final fieldName = initializer.fieldName.token.lexeme;
+    final expression = initializer.expression;
+    if (!fieldName.startsWith('_') || expression is! SimpleIdentifier) {
+      return null;
+    }
+    final parameterName = expression.token.lexeme;
+    if (initializers.containsKey(fieldName)) {
+      return null;
+    }
+    initializers[fieldName] = parameterName;
+  }
+  return initializers;
+}
+
+String _declaringParameterSource(_EligibleField field, String fieldName) {
+  return '${field.declaringKeyword} ${field.typeSource} $fieldName';
+}
+
 bool _isSimpleFieldFormalParameter(FieldFormalParameter parameter) {
+  return parameter.metadata.isEmpty &&
+      parameter.documentationComment == null &&
+      parameter.constFinalOrVarKeyword == null &&
+      parameter.covariantKeyword == null &&
+      parameter.type == null &&
+      parameter.functionTypedSuffix == null;
+}
+
+bool _isSimpleRegularFormalParameter(RegularFormalParameter parameter) {
+  return parameter.metadata.isEmpty &&
+      parameter.documentationComment == null &&
+      parameter.constFinalOrVarKeyword == null &&
+      parameter.covariantKeyword == null &&
+      parameter.functionTypedSuffix == null;
+}
+
+bool _isSimpleSuperFormalParameter(SuperFormalParameter parameter) {
   return parameter.metadata.isEmpty &&
       parameter.documentationComment == null &&
       parameter.constFinalOrVarKeyword == null &&
@@ -323,6 +473,20 @@ class _ClassMigrationPlan {
 
   final List<SourceEdit> edits;
   final Map<String, Object?> reportEntry;
+}
+
+class _ParameterMigrationPlan {
+  const _ParameterMigrationPlan({
+    this.edits = const [],
+    this.removableFields = const [],
+    this.fieldNames = const [],
+    this.privateInitializerFieldNames = const [],
+  });
+
+  final List<SourceEdit> edits;
+  final List<FieldDeclaration> removableFields;
+  final List<String> fieldNames;
+  final List<String> privateInitializerFieldNames;
 }
 
 class _EligibleField {

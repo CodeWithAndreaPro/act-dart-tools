@@ -744,6 +744,41 @@ class Base {
 }
 ''');
     });
+
+    test('moves safe non-empty constructor bodies to primary bodies', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/guarded.dart', '''
+class Guarded {
+  final String id;
+
+  Guarded(this.id) {
+    if (id.isEmpty) {
+      throw ArgumentError.value(id, 'id');
+    }
+    print(id);
+  }
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/guarded.dart',
+        declarationName: 'Guarded',
+      );
+      expect(await _formattedFile(root, 'lib/guarded.dart'), '''
+class Guarded(final String id) {
+  this {
+    if (id.isEmpty) {
+      throw ArgumentError.value(id, 'id');
+    }
+    print(id);
+  }
+}
+''');
+    });
   });
 
   group('class primary constructor skip reporting', () {
@@ -810,15 +845,15 @@ class RedirectingConstructor {
 ''',
       ),
       (
-        name: 'non-empty constructor body',
-        declarationName: 'BodyConstructor',
-        reason: 'nonEmptyConstructorBody',
-        message: 'Non-empty constructor bodies are not supported.',
+        name: 'unsupported constructor body',
+        declarationName: 'UnsupportedBodyConstructor',
+        reason: 'unsupportedConstructorBody',
+        message: 'This constructor body shape is not supported.',
         source: '''
-class BodyConstructor {
+class UnsupportedBodyConstructor {
   final String id;
 
-  BodyConstructor(this.id) {
+  const UnsupportedBodyConstructor(this.id) {
     print(id);
   }
 }
@@ -1069,6 +1104,27 @@ class Parent {
         declarationName: 'Child',
         reason: 'namedSuperInitializer',
         message: 'Named super constructor initializers are not supported.',
+      );
+    });
+
+    test('skips assignment-in-body field initialization precisely', () async {
+      const originalSource = '''
+class FieldInitializingBody {
+  String? id;
+
+  FieldInitializingBody(String id) {
+    this.id = id;
+  }
+}
+''';
+
+      await _expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/body_field_initializer.dart',
+        originalSource: originalSource,
+        declarationName: 'FieldInitializingBody',
+        reason: 'fieldInitializingConstructorBody',
+        message:
+            'Constructor bodies that initialize instance fields are not supported.',
       );
     });
   });

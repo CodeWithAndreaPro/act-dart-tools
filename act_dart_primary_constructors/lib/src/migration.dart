@@ -30,6 +30,14 @@ enum DeclarationSkipReason {
     'nonEmptyConstructorBody',
     'Non-empty constructor bodies are not supported.',
   ),
+  fieldInitializingConstructorBody(
+    'fieldInitializingConstructorBody',
+    'Constructor bodies that initialize instance fields are not supported.',
+  ),
+  unsupportedConstructorBody(
+    'unsupportedConstructorBody',
+    'This constructor body shape is not supported.',
+  ),
   emptyNonConstConstructorWithMembers(
     'emptyNonConstConstructorWithMembers',
     'Empty non-const constructors without parameters are only supported when '
@@ -295,8 +303,12 @@ DeclarationSkipReason? _primaryConstructorSkipReason({
   if (constructor.redirectedConstructor != null) {
     return DeclarationSkipReason.redirectingConstructor;
   }
-  if (constructor.body is! EmptyFunctionBody) {
-    return DeclarationSkipReason.nonEmptyConstructorBody;
+  final bodySkipReason = _constructorBodySkipReason(
+    declaration: declaration,
+    constructor: constructor,
+  );
+  if (bodySkipReason != null) {
+    return bodySkipReason;
   }
   final initializerClassification = _classifyConstructorInitializers(
     source: source,
@@ -350,6 +362,26 @@ DeclarationSkipReason? _primaryConstructorSkipReason({
     }
   }
 
+  return null;
+}
+
+DeclarationSkipReason? _constructorBodySkipReason({
+  required ClassDeclaration declaration,
+  required ConstructorDeclaration constructor,
+}) {
+  final body = constructor.body;
+  if (body is EmptyFunctionBody) {
+    return null;
+  }
+  if (body is! BlockFunctionBody ||
+      body.keyword != null ||
+      body.star != null ||
+      constructor.constKeyword != null) {
+    return DeclarationSkipReason.unsupportedConstructorBody;
+  }
+  if (_bodyWritesInstanceField(declaration: declaration, body: body)) {
+    return DeclarationSkipReason.fieldInitializingConstructorBody;
+  }
   return null;
 }
 
@@ -525,9 +557,9 @@ _ClassMigrationPlan? _planClassMigration({
       initializerPlan.privateFieldInitializersByName;
   final parameterEdits = <SourceEdit>[];
   final retainedInitializers = initializerPlan.retainedInitializers;
-  final removableMembers = <ClassMember>{
-    if (retainedInitializers.isEmpty) constructor,
-  };
+  final primaryBodyRequired =
+      retainedInitializers.isNotEmpty || constructor.body is BlockFunctionBody;
+  final removableMembers = <ClassMember>{if (!primaryBodyRequired) constructor};
   final fieldNames = <String>{};
   final usedPrivateInitializers = <String>{};
   final parametersOffset = constructor.parameters.offset;
@@ -588,7 +620,7 @@ _ClassMigrationPlan? _planClassMigration({
       ),
   ];
 
-  if (retainedInitializers.isEmpty &&
+  if (!primaryBodyRequired &&
       declaration.body.members.length == removableMembers.length) {
     edits.add(
       SourceEdit(
@@ -604,7 +636,7 @@ _ClassMigrationPlan? _planClassMigration({
         SourceEdit(offset: range.offset, length: range.length, replacement: ''),
       );
     }
-    if (retainedInitializers.isNotEmpty) {
+    if (primaryBodyRequired) {
       final range = _memberRemovalRange(source, constructor);
       edits.add(
         SourceEdit(
@@ -648,12 +680,16 @@ ConstructorDeclaration? _eligibleUnnamedConstructor(
     }
     if (unnamed != null ||
         constructor.redirectedConstructor != null ||
-        constructor.body is! EmptyFunctionBody) {
+        !_isSupportedConstructorBodyShape(constructor.body)) {
       return null;
     }
     unnamed = constructor;
   }
   return unnamed;
+}
+
+bool _isSupportedConstructorBodyShape(FunctionBody body) {
+  return body is EmptyFunctionBody || body is BlockFunctionBody;
 }
 
 Map<String, _EligibleField> _eligibleFieldsByName(
@@ -891,10 +927,14 @@ String _primaryConstructorBodySource({
   required List<ConstructorInitializer> retainedInitializers,
 }) {
   final indent = _lineIndentation(source, constructor.offset);
-  final initializers = retainedInitializers
-      .map((initializer) => _sourceFor(source, initializer))
-      .join(', ');
-  return '${indent}this : $initializers;\n';
+  final initializerSource = retainedInitializers.isEmpty
+      ? ''
+      : ' : ${retainedInitializers.map((initializer) => _sourceFor(source, initializer)).join(', ')}';
+  final body = constructor.body;
+  final bodySource = body is BlockFunctionBody
+      ? ' ${_sourceFor(source, body)}'
+      : ';';
+  return '${indent}this$initializerSource$bodySource\n';
 }
 
 String _declaringParameterSource(_EligibleField field, String fieldName) {
@@ -1112,6 +1152,81 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
       return true;
     }
     return false;
+  }
+}
+
+bool _bodyWritesInstanceField({
+  required ClassDeclaration declaration,
+  required BlockFunctionBody body,
+}) {
+  final fieldNames = {
+    for (final member in declaration.body.members.whereType<FieldDeclaration>())
+      if (!member.isStatic)
+        for (final variable in member.fields.variables) variable.name.lexeme,
+  };
+  if (fieldNames.isEmpty) {
+    return false;
+  }
+  final visitor = _FieldWriteVisitor(fieldNames);
+  body.accept(visitor);
+  return visitor.hasFieldWrite;
+}
+
+class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
+  _FieldWriteVisitor(this.fieldNames);
+
+  final Set<String> fieldNames;
+  bool hasFieldWrite = false;
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) {
+    _checkWriteTarget(node.leftHandSide);
+    if (!hasFieldWrite) {
+      super.visitAssignmentExpression(node);
+    }
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    if (node.operator.lexeme == '++' || node.operator.lexeme == '--') {
+      _checkWriteTarget(node.operand);
+    }
+    if (!hasFieldWrite) {
+      super.visitPostfixExpression(node);
+    }
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    if (node.operator.lexeme == '++' || node.operator.lexeme == '--') {
+      _checkWriteTarget(node.operand);
+    }
+    if (!hasFieldWrite) {
+      super.visitPrefixExpression(node);
+    }
+  }
+
+  void _checkWriteTarget(Expression target) {
+    final fieldName = _fieldWriteTargetName(target);
+    if (fieldName != null && fieldNames.contains(fieldName)) {
+      hasFieldWrite = true;
+    }
+  }
+
+  String? _fieldWriteTargetName(Expression target) {
+    if (target is SimpleIdentifier) {
+      return target.token.lexeme;
+    }
+    if (target is PrefixedIdentifier && target.prefix.token.lexeme == 'this') {
+      return target.identifier.token.lexeme;
+    }
+    if (target is PropertyAccess && target.target is ThisExpression) {
+      return target.propertyName.token.lexeme;
+    }
+    if (target is ParenthesizedExpression) {
+      return _fieldWriteTargetName(target.expression);
+    }
+    return null;
   }
 }
 

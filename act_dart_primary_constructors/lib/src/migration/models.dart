@@ -135,10 +135,39 @@ class MigrationFailure implements Exception {
 }
 
 class _ClassMigrationPlan {
-  const _ClassMigrationPlan({required this.edits, required this.reportEntry});
+  const _ClassMigrationPlan({
+    required this.edits,
+    required this.migratedDeclaration,
+  });
 
   final List<SourceEdit> edits;
-  final Map<String, Object?> reportEntry;
+  final _MigratedDeclaration migratedDeclaration;
+}
+
+class _MigratedDeclaration {
+  const _MigratedDeclaration({
+    required this.path,
+    required this.declarationKind,
+    required this.declarationName,
+    required this.transform,
+    required this.offset,
+  });
+
+  final String path;
+  final String declarationKind;
+  final String declarationName;
+  final String transform;
+  final int offset;
+
+  Map<String, Object?> toJson() {
+    return {
+      'path': path,
+      'declarationKind': declarationKind,
+      'declarationName': declarationName,
+      'transform': transform,
+      'offset': offset,
+    };
+  }
 }
 
 class _SkippedDeclaration {
@@ -259,7 +288,7 @@ class _PlannedFileMigration {
 
   final TargetDartFile targetFile;
   final String transformedSource;
-  final List<Map<String, Object?>> migratedDeclarations;
+  final List<_MigratedDeclaration> migratedDeclarations;
   final List<_SkippedDeclaration> skippedDeclarations;
   final bool hasEdits;
 }

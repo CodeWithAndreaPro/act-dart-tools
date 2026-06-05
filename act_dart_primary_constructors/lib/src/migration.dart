@@ -2,6 +2,7 @@ import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
 import 'discovery.dart';
@@ -61,7 +62,7 @@ enum DeclarationSkipReason {
   ),
   fieldComment(
     'fieldComment',
-    'Field comments are not moved by this transform.',
+    'Ambiguous field comments are not moved to declaring parameters.',
   ),
   missingField(
     'missingField',
@@ -406,7 +407,11 @@ DeclarationSkipReason? _parameterSkipReason({
       return DeclarationSkipReason.unsupportedParameterShape;
     }
     final fieldName = parameter.name.lexeme;
-    final fieldSkipReason = _mappedFieldSkipReason(declaration, fieldName);
+    final fieldSkipReason = _mappedFieldSkipReason(
+      source: source,
+      declaration: declaration,
+      fieldName: fieldName,
+    );
     if (fieldSkipReason != null) {
       return fieldSkipReason;
     }
@@ -436,7 +441,11 @@ DeclarationSkipReason? _parameterSkipReason({
     if (privateFieldInitializersByName[fieldName] != parameterName) {
       return DeclarationSkipReason.unsupportedParameterShape;
     }
-    final fieldSkipReason = _mappedFieldSkipReason(declaration, fieldName);
+    final fieldSkipReason = _mappedFieldSkipReason(
+      source: source,
+      declaration: declaration,
+      fieldName: fieldName,
+    );
     if (fieldSkipReason != null) {
       return fieldSkipReason;
     }
@@ -460,10 +469,11 @@ DeclarationSkipReason? _parameterSkipReason({
   return DeclarationSkipReason.unsupportedParameterShape;
 }
 
-DeclarationSkipReason? _mappedFieldSkipReason(
-  ClassDeclaration declaration,
-  String fieldName,
-) {
+DeclarationSkipReason? _mappedFieldSkipReason({
+  required String source,
+  required ClassDeclaration declaration,
+  required String fieldName,
+}) {
   final field = _fieldDeclarationFor(declaration, fieldName);
   if (field == null) {
     return DeclarationSkipReason.missingField;
@@ -487,8 +497,11 @@ DeclarationSkipReason? _mappedFieldSkipReason(
       variable.metadata.isNotEmpty) {
     return DeclarationSkipReason.fieldMetadata;
   }
-  if (fieldList.documentationComment != null ||
-      member.documentationComment != null) {
+  if (_fieldCommentMigration(
+    source: source,
+    declaration: declaration,
+    member: member,
+  ).isAmbiguous) {
     return DeclarationSkipReason.fieldComment;
   }
   if (variable.initializer != null) {
@@ -708,9 +721,15 @@ Map<String, _EligibleField> _eligibleFieldsByName(
         fieldList.type == null ||
         fieldList.metadata.isNotEmpty ||
         member.metadata.isNotEmpty ||
-        fieldList.documentationComment != null ||
-        member.documentationComment != null ||
         fieldList.variables.length != 1) {
+      continue;
+    }
+    final commentMigration = _fieldCommentMigration(
+      source: source,
+      declaration: declaration,
+      member: member,
+    );
+    if (commentMigration.isAmbiguous) {
       continue;
     }
     final variable = fieldList.variables.single;
@@ -722,6 +741,7 @@ Map<String, _EligibleField> _eligibleFieldsByName(
       variable: variable,
       typeSource: _sourceFor(source, fieldList.type!),
       declaringKeyword: fieldList.isFinal ? 'final' : 'var',
+      leadingCommentSource: commentMigration.source,
     );
   }
   return fields;
@@ -736,6 +756,7 @@ _ParameterMigrationPlan? _planConstructorParameter({
 }) {
   if (parameter is FieldFormalParameter) {
     return _planFieldFormalParameter(
+      source: source,
       parameter: parameter,
       fieldsByName: fieldsByName,
       parametersOffset: parametersOffset,
@@ -758,6 +779,7 @@ _ParameterMigrationPlan? _planConstructorParameter({
 }
 
 _ParameterMigrationPlan? _planFieldFormalParameter({
+  required String source,
   required FieldFormalParameter parameter,
   required Map<String, _EligibleField> fieldsByName,
   required int parametersOffset,
@@ -767,12 +789,23 @@ _ParameterMigrationPlan? _planFieldFormalParameter({
   if (field == null || !_isSimpleFieldFormalParameter(parameter)) {
     return null;
   }
+  final shouldMoveComment = field.leadingCommentSource != null;
+  final replacementOffset = shouldMoveComment
+      ? parameter.offset
+      : parameter.thisKeyword.offset;
+  final prefix = shouldMoveComment
+      ? source.substring(parameter.offset, parameter.thisKeyword.offset)
+      : '';
   return _ParameterMigrationPlan(
     edits: [
       SourceEdit(
-        offset: parameter.thisKeyword.offset - parametersOffset,
-        length: parameter.name.end - parameter.thisKeyword.offset,
-        replacement: _declaringParameterSource(field, fieldName),
+        offset: replacementOffset - parametersOffset,
+        length: parameter.name.end - replacementOffset,
+        replacement: _declaringParameterSource(
+          field,
+          fieldName,
+          prefix: prefix,
+        ),
       ),
     ],
     removableFields: [field.declaration],
@@ -805,12 +838,24 @@ _ParameterMigrationPlan? _planPrivateFieldParameter({
     return null;
   }
 
+  final shouldMoveComment = field.leadingCommentSource != null;
+  final replacementOffset = shouldMoveComment
+      ? parameter.offset
+      : parameterType.offset;
+  final prefix = shouldMoveComment
+      ? source.substring(parameter.offset, parameterType.offset)
+      : '';
+
   return _ParameterMigrationPlan(
     edits: [
       SourceEdit(
-        offset: parameterType.offset - parametersOffset,
-        length: parameter.name!.end - parameterType.offset,
-        replacement: _declaringParameterSource(field, fieldName),
+        offset: replacementOffset - parametersOffset,
+        length: parameter.name!.end - replacementOffset,
+        replacement: _declaringParameterSource(
+          field,
+          fieldName,
+          prefix: prefix,
+        ),
       ),
     ],
     removableFields: [field.declaration],
@@ -867,7 +912,11 @@ _ConstructorInitializerClassification _classifyConstructorInitializers({
       continue;
     }
 
-    final fieldSkipReason = _mappedFieldSkipReason(declaration, fieldName);
+    final fieldSkipReason = _mappedFieldSkipReason(
+      source: source,
+      declaration: declaration,
+      fieldName: fieldName,
+    );
     if (fieldSkipReason != null) {
       return _ConstructorInitializerClassification.skip(fieldSkipReason);
     }
@@ -937,8 +986,18 @@ String _primaryConstructorBodySource({
   return '${indent}this$initializerSource$bodySource\n';
 }
 
-String _declaringParameterSource(_EligibleField field, String fieldName) {
-  return '${field.declaringKeyword} ${field.typeSource} $fieldName';
+String _declaringParameterSource(
+  _EligibleField field,
+  String fieldName, {
+  String prefix = '',
+}) {
+  final parameterSource =
+      '$prefix${field.declaringKeyword} ${field.typeSource} $fieldName';
+  final commentSource = field.leadingCommentSource;
+  if (commentSource == null) {
+    return parameterSource;
+  }
+  return '$commentSource\n$parameterSource';
 }
 
 bool _isSimpleFieldFormalParameter(FieldFormalParameter parameter) {
@@ -1002,8 +1061,220 @@ String _lineIndentation(String source, int offset) {
   return source.substring(start, offset);
 }
 
+_FieldCommentMigration _fieldCommentMigration({
+  required String source,
+  required ClassDeclaration declaration,
+  required FieldDeclaration member,
+}) {
+  if (_hasFollowingFieldComment(source, declaration, member)) {
+    return const _FieldCommentMigration.ambiguous();
+  }
+
+  final comments = _leadingCommentTokens(member);
+  if (comments.isEmpty) {
+    return const _FieldCommentMigration.none();
+  }
+  if (!_isDirectCommentCluster(
+    source,
+    comments,
+    member.firstTokenAfterCommentAndMetadata.offset,
+  )) {
+    return const _FieldCommentMigration.ambiguous();
+  }
+
+  final documentationComment =
+      member.documentationComment ?? member.fields.documentationComment;
+  if (documentationComment != null) {
+    final documentationTokens = documentationComment.tokens;
+    if (!_sameCommentTokens(comments, documentationTokens)) {
+      return const _FieldCommentMigration.ambiguous();
+    }
+    return _FieldCommentMigration.direct(
+      source: _commentSource(source, comments),
+    );
+  }
+
+  if (!_isOrdinaryCommentCluster(comments) ||
+      _isSharedOrdinaryFieldComment(source, declaration, member)) {
+    return const _FieldCommentMigration.ambiguous();
+  }
+  return _FieldCommentMigration.direct(
+    source: _commentSource(source, comments),
+  );
+}
+
+List<Token> _leadingCommentTokens(AnnotatedNode node) {
+  final comments = <Token>[];
+  CommentToken? comment =
+      node.firstTokenAfterCommentAndMetadata.precedingComments;
+  while (comment != null) {
+    comments.add(comment);
+    comment = comment.next as CommentToken?;
+  }
+  return comments;
+}
+
+bool _sameCommentTokens(List<Token> left, List<Token> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index++) {
+    if (left[index].offset != right[index].offset ||
+        left[index].end != right[index].end) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _isDirectCommentCluster(
+  String source,
+  List<Token> comments,
+  int targetOffset,
+) {
+  for (var index = 0; index < comments.length - 1; index++) {
+    if (!_hasSingleLineWhitespaceGap(
+      source,
+      comments[index].end,
+      comments[index + 1].offset,
+    )) {
+      return false;
+    }
+  }
+  return _hasSingleLineWhitespaceGap(source, comments.last.end, targetOffset);
+}
+
+bool _hasSingleLineWhitespaceGap(String source, int start, int end) {
+  final gap = source.substring(start, end);
+  return gap.trim().isEmpty && _lineBreakCount(gap) == 1;
+}
+
+int _lineBreakCount(String source) {
+  var count = 0;
+  for (var index = 0; index < source.length; index++) {
+    if (source.codeUnitAt(index) == 10) {
+      count++;
+    }
+  }
+  return count;
+}
+
+bool _isOrdinaryCommentCluster(List<Token> comments) {
+  if (comments.first.type == TokenType.SINGLE_LINE_COMMENT) {
+    return comments.every(
+      (comment) =>
+          comment.type == TokenType.SINGLE_LINE_COMMENT &&
+          !comment.lexeme.startsWith('///'),
+    );
+  }
+  if (comments.first.type == TokenType.MULTI_LINE_COMMENT) {
+    return comments.length == 1 && !comments.first.lexeme.startsWith('/**');
+  }
+  return false;
+}
+
+bool _isSharedOrdinaryFieldComment(
+  String source,
+  ClassDeclaration declaration,
+  FieldDeclaration member,
+) {
+  final nextMember = _nextClassMember(declaration, member);
+  if (nextMember is! FieldDeclaration ||
+      _hasBlankLineBetween(source, member.end, nextMember.offset)) {
+    return false;
+  }
+  final nextComments = _leadingCommentTokens(nextMember);
+  return nextComments.isEmpty ||
+      !_isDirectCommentCluster(
+        source,
+        nextComments,
+        nextMember.firstTokenAfterCommentAndMetadata.offset,
+      );
+}
+
+bool _hasFollowingFieldComment(
+  String source,
+  ClassDeclaration declaration,
+  FieldDeclaration member,
+) {
+  final lineEnd = _lineEndOffset(source, member.end);
+  if (_hasCommentMarker(source.substring(member.end, lineEnd))) {
+    return true;
+  }
+
+  final nextMember = _nextClassMember(declaration, member);
+  final nextOffset = nextMember == null
+      ? declaration.body.end
+      : _memberLeadingCommentOffset(nextMember);
+  if (_hasCommentMarker(source.substring(lineEnd, nextOffset))) {
+    return true;
+  }
+
+  if (nextMember is FieldDeclaration) {
+    return false;
+  }
+  return nextMember != null &&
+      _leadingCommentTokens(nextMember).any(_isOrdinaryCommentToken);
+}
+
+int _memberLeadingCommentOffset(ClassMember member) {
+  final comments = _leadingCommentTokens(member);
+  if (comments.isNotEmpty) {
+    return comments.first.offset;
+  }
+  return member.offset;
+}
+
+bool _isOrdinaryCommentToken(Token comment) {
+  return switch (comment.type) {
+    TokenType.SINGLE_LINE_COMMENT => !comment.lexeme.startsWith('///'),
+    TokenType.MULTI_LINE_COMMENT => !comment.lexeme.startsWith('/**'),
+    _ => false,
+  };
+}
+
+int _lineEndOffset(String source, int offset) {
+  final lineEnd = source.indexOf('\n', offset);
+  return lineEnd == -1 ? source.length : lineEnd;
+}
+
+bool _hasCommentMarker(String source) {
+  return source.contains('//') || source.contains('/*');
+}
+
+bool _hasBlankLineBetween(String source, int start, int end) {
+  return RegExp(r'\n[ \t\r]*\n').hasMatch(source.substring(start, end));
+}
+
+ClassMember? _nextClassMember(
+  ClassDeclaration declaration,
+  ClassMember member,
+) {
+  final members = declaration.body.members;
+  for (var index = 0; index < members.length - 1; index++) {
+    if (identical(members[index], member)) {
+      return members[index + 1];
+    }
+  }
+  return null;
+}
+
+String _commentSource(String source, List<Token> comments) {
+  return source.substring(comments.first.offset, comments.last.end);
+}
+
+_SourceRange _commentRange(List<Token> comments) {
+  return _SourceRange(
+    comments.first.offset,
+    comments.last.end - comments.first.offset,
+  );
+}
+
 _SourceRange _memberRemovalRange(String source, ClassMember member) {
-  var start = member.offset;
+  final leadingCommentRange = member is FieldDeclaration
+      ? _directFieldLeadingCommentRange(source, member)
+      : null;
+  var start = leadingCommentRange?.offset ?? member.offset;
   while (start > 0 && source.codeUnitAt(start - 1) != 10) {
     start--;
   }
@@ -1024,6 +1295,22 @@ _SourceRange _memberRemovalRange(String source, ClassMember member) {
     end = lineEnd == source.length ? lineEnd : lineEnd + 1;
   }
   return _SourceRange(start, end - start);
+}
+
+_SourceRange? _directFieldLeadingCommentRange(
+  String source,
+  FieldDeclaration member,
+) {
+  final comments = _leadingCommentTokens(member);
+  if (comments.isEmpty ||
+      !_isDirectCommentCluster(
+        source,
+        comments,
+        member.firstTokenAfterCommentAndMetadata.offset,
+      )) {
+    return null;
+  }
+  return _commentRange(comments);
 }
 
 class _ClassMigrationPlan {
@@ -1110,6 +1397,18 @@ class _FieldInitializerMigration {
   final String fieldName;
   final VariableDeclaration variable;
   final Expression expression;
+}
+
+class _FieldCommentMigration {
+  const _FieldCommentMigration.none() : source = null, isAmbiguous = false;
+
+  const _FieldCommentMigration.direct({required this.source})
+    : isAmbiguous = false;
+
+  const _FieldCommentMigration.ambiguous() : source = null, isAmbiguous = true;
+
+  final String? source;
+  final bool isAmbiguous;
 }
 
 class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
@@ -1236,12 +1535,14 @@ class _EligibleField {
     required this.variable,
     required this.typeSource,
     required this.declaringKeyword,
+    this.leadingCommentSource,
   });
 
   final FieldDeclaration declaration;
   final VariableDeclaration variable;
   final String typeSource;
   final String declaringKeyword;
+  final String? leadingCommentSource;
 }
 
 class _PlannedFileMigration {

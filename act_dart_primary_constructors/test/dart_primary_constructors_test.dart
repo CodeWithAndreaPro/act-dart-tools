@@ -779,6 +779,99 @@ class Guarded(final String id) {
 }
 ''');
     });
+
+    test(
+      'moves directly attached documentation comments to parameters',
+      () async {
+        final root = await _createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        _writeFile(root, 'lib/documented.dart', '''
+class Documented {
+  /// Stable identifier.
+  final String id;
+
+  Documented(this.id);
+}
+''');
+
+        final result = await _runCli([
+          'migrate',
+          '--root',
+          root.path,
+          '--json',
+        ]);
+
+        _expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/documented.dart',
+          declarationName: 'Documented',
+        );
+        expect(await _formattedFile(root, 'lib/documented.dart'), '''
+class Documented(
+  /// Stable identifier.
+  final String id,
+);
+''');
+      },
+    );
+
+    test('moves directly attached line comments to parameters', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/line_commented.dart', '''
+class LineCommented {
+  // Stable identifier.
+  final String id;
+
+  LineCommented(this.id);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/line_commented.dart',
+        declarationName: 'LineCommented',
+      );
+      expect(await _formattedFile(root, 'lib/line_commented.dart'), '''
+class LineCommented(
+  // Stable identifier.
+  final String id,
+);
+''');
+    });
+
+    test('moves directly attached block comments to parameters', () async {
+      final root = await _createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      _writeFile(root, 'lib/block_commented.dart', '''
+class BlockCommented {
+  /*
+   * Stable identifier.
+   */
+  final String id;
+
+  BlockCommented(this.id);
+}
+''');
+
+      final result = await _runCli(['migrate', '--root', root.path, '--json']);
+
+      _expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/block_commented.dart',
+        declarationName: 'BlockCommented',
+      );
+      expect(await _formattedFile(root, 'lib/block_commented.dart'), '''
+class BlockCommented(
+  /*
+   * Stable identifier.
+   */
+  final String id,
+);
+''');
+    });
   });
 
   group('class primary constructor skip reporting', () {
@@ -814,6 +907,69 @@ class Already(final String id);
         expect(_readFile(root, 'lib/source.dart'), originalSource);
       },
     );
+
+    for (final scenario in [
+      (
+        name: 'trailing field comment',
+        declarationName: 'TrailingFieldComment',
+        source: '''
+class TrailingFieldComment {
+  final String id; // Stable identifier.
+
+  TrailingFieldComment(this.id);
+}
+''',
+      ),
+      (
+        name: 'separated field comment',
+        declarationName: 'SeparatedFieldComment',
+        source: '''
+class SeparatedFieldComment {
+  // Stable identifier.
+
+  final String id;
+
+  SeparatedFieldComment(this.id);
+}
+''',
+      ),
+      (
+        name: 'shared field comment',
+        declarationName: 'SharedFieldComment',
+        source: '''
+class SharedFieldComment {
+  // Shared identity fields.
+  final String id;
+  final String name;
+
+  SharedFieldComment(this.id, this.name);
+}
+''',
+      ),
+      (
+        name: 'interleaved field comment',
+        declarationName: 'InterleavedFieldComment',
+        source: '''
+class InterleavedFieldComment {
+  final String id;
+  // Interleaved comment.
+
+  InterleavedFieldComment(this.id);
+}
+''',
+      ),
+    ]) {
+      test('skips ${scenario.name} precisely', () async {
+        await _expectSinglePrimaryConstructorSkip(
+          relativePath: 'lib/comments.dart',
+          originalSource: scenario.source,
+          declarationName: scenario.declarationName,
+          reason: 'fieldComment',
+          message:
+              'Ambiguous field comments are not moved to declaring parameters.',
+        );
+      });
+    }
 
     for (final scenario in [
       (

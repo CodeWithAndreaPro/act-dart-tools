@@ -8,16 +8,114 @@ import 'source_edit.dart';
 
 const primaryConstructorTransform = 'primaryConstructor';
 
+enum DeclarationSkipReason {
+  multipleConstructors(
+    'multipleConstructors',
+    'Multiple generative constructors are not supported.',
+  ),
+  namedConstructor(
+    'namedConstructor',
+    'Named generative constructors are not supported.',
+  ),
+  externalConstructor(
+    'externalConstructor',
+    'External constructors are not supported.',
+  ),
+  redirectingConstructor(
+    'redirectingConstructor',
+    'Redirecting constructors are not supported.',
+  ),
+  nonEmptyConstructorBody(
+    'nonEmptyConstructorBody',
+    'Non-empty constructor bodies are not supported.',
+  ),
+  emptyNonConstConstructorWithMembers(
+    'emptyNonConstConstructorWithMembers',
+    'Empty non-const constructors without parameters are only supported when '
+        'the class body can collapse.',
+  ),
+  constructorMetadata(
+    'constructorMetadata',
+    'Constructor metadata is not moved to primary constructors.',
+  ),
+  constructorComment(
+    'constructorComment',
+    'Constructor comments are not moved to primary constructors.',
+  ),
+  parameterMetadata(
+    'parameterMetadata',
+    'Parameter metadata is not moved to declaring parameters.',
+  ),
+  fieldMetadata(
+    'fieldMetadata',
+    'Field metadata is not moved to declaring parameters.',
+  ),
+  fieldComment(
+    'fieldComment',
+    'Field comments are not moved by this transform.',
+  ),
+  missingField(
+    'missingField',
+    'A constructor parameter maps to a missing field.',
+  ),
+  staticField(
+    'staticField',
+    'Static fields cannot become declaring parameters.',
+  ),
+  lateField('lateField', 'Late fields cannot become declaring parameters.'),
+  externalField(
+    'externalField',
+    'External fields cannot become declaring parameters.',
+  ),
+  initializedField(
+    'initializedField',
+    'Initialized fields cannot become declaring parameters.',
+  ),
+  implicitFieldType(
+    'implicitFieldType',
+    'Fields with implicit types cannot become declaring parameters.',
+  ),
+  multipleFieldVariables(
+    'multipleFieldVariables',
+    'Multi-variable field declarations cannot become declaring parameters.',
+  ),
+  unsupportedFieldModifier(
+    'unsupportedFieldModifier',
+    'This field modifier is not supported for declaring parameters.',
+  ),
+  unsupportedParameterShape(
+    'unsupportedParameterShape',
+    'This constructor parameter shape is not supported.',
+  ),
+  unsupportedInitializer(
+    'unsupportedInitializer',
+    'This constructor initializer is not supported.',
+  ),
+  namedSuperInitializer(
+    'namedSuperInitializer',
+    'Named super constructor initializers are not supported.',
+  );
+
+  const DeclarationSkipReason(this.code, this.message);
+
+  final String code;
+  final String message;
+}
+
 class MigrationRunResult {
   const MigrationRunResult({
     required this.changedFiles,
     required this.migratedDeclarations,
+    required this.skippedDeclarations,
     required this.transformCounts,
+    required this.skipReasonCounts,
   });
 
   final List<String> changedFiles;
   final List<Map<String, Object?>> migratedDeclarations;
+  final List<Map<String, Object?>> skippedDeclarations;
   final Map<String, int> transformCounts;
+  final Map<String, int> skipReasonCounts;
 }
 
 class MigrationFailure implements Exception {
@@ -36,6 +134,10 @@ MigrationRunResult migrateTargetPackageFiles({
 }) {
   final changedFiles = <String>[];
   final migratedDeclarations = <Map<String, Object?>>[];
+  final skippedDeclarations = <Map<String, Object?>>[];
+  final skipReasonCounts = {
+    for (final reason in DeclarationSkipReason.values) reason: 0,
+  };
   final plannedFiles = <_PlannedFileMigration>[];
 
   for (final targetFile in files) {
@@ -44,9 +146,16 @@ MigrationRunResult migrateTargetPackageFiles({
     if (plan == null) {
       continue;
     }
-    changedFiles.add(targetFile.relativePath);
     migratedDeclarations.addAll(plan.migratedDeclarations);
-    plannedFiles.add(plan);
+    for (final skippedDeclaration in plan.skippedDeclarations) {
+      skippedDeclarations.add(skippedDeclaration.toJson());
+      skipReasonCounts[skippedDeclaration.reason] =
+          skipReasonCounts[skippedDeclaration.reason]! + 1;
+    }
+    if (plan.hasEdits) {
+      changedFiles.add(targetFile.relativePath);
+      plannedFiles.add(plan);
+    }
   }
 
   for (final plan in plannedFiles) {
@@ -66,9 +175,15 @@ MigrationRunResult migrateTargetPackageFiles({
   return MigrationRunResult(
     changedFiles: changedFiles,
     migratedDeclarations: migratedDeclarations,
+    skippedDeclarations: skippedDeclarations,
     transformCounts: {
       if (migratedDeclarations.isNotEmpty)
         primaryConstructorTransform: migratedDeclarations.length,
+    },
+    skipReasonCounts: {
+      for (final reason in DeclarationSkipReason.values)
+        if (skipReasonCounts[reason] != 0)
+          reason.code: skipReasonCounts[reason]!,
     },
   );
 }
@@ -80,9 +195,28 @@ _PlannedFileMigration? _planFileMigration({
   final unit = _parseSource(source, path: targetFile.file.path, input: true);
   final edits = <SourceEdit>[];
   final migratedDeclarations = <Map<String, Object?>>[];
+  final skippedDeclarations = <_SkippedDeclaration>[];
 
   for (final declaration
       in unit.unit.declarations.whereType<ClassDeclaration>()) {
+    final skipReason = _primaryConstructorSkipReason(
+      source: source,
+      declaration: declaration,
+    );
+    if (skipReason != null) {
+      skippedDeclarations.add(
+        _SkippedDeclaration(
+          path: targetFile.relativePath,
+          declarationKind: 'class',
+          declarationName: declaration.namePart.typeName.lexeme,
+          transform: primaryConstructorTransform,
+          offset: declaration.offset,
+          reason: skipReason,
+        ),
+      );
+      continue;
+    }
+
     final classPlan = _planClassMigration(
       source: source,
       targetFile: targetFile,
@@ -95,16 +229,264 @@ _PlannedFileMigration? _planFileMigration({
     migratedDeclarations.add(classPlan.reportEntry);
   }
 
-  if (edits.isEmpty) {
+  if (edits.isEmpty && skippedDeclarations.isEmpty) {
     return null;
   }
 
-  final transformedSource = applySourceEdits(source, edits);
+  final transformedSource = edits.isEmpty
+      ? source
+      : applySourceEdits(source, edits);
   return _PlannedFileMigration(
     targetFile: targetFile,
     transformedSource: transformedSource,
     migratedDeclarations: migratedDeclarations,
+    skippedDeclarations: skippedDeclarations,
+    hasEdits: edits.isNotEmpty,
   );
+}
+
+DeclarationSkipReason? _primaryConstructorSkipReason({
+  required String source,
+  required ClassDeclaration declaration,
+}) {
+  if (declaration.namePart is PrimaryConstructorDeclaration) {
+    return null;
+  }
+
+  final constructors = declaration.body.members
+      .whereType<ConstructorDeclaration>()
+      .toList();
+  if (constructors.isEmpty) {
+    return null;
+  }
+
+  final generativeConstructors = constructors
+      .where((constructor) => constructor.factoryKeyword == null)
+      .toList();
+  if (generativeConstructors.isEmpty) {
+    return null;
+  }
+
+  final unnamedConstructors = generativeConstructors
+      .where(_isUnnamedConstructor)
+      .toList();
+  if (unnamedConstructors.isEmpty) {
+    return null;
+  }
+  if (unnamedConstructors.length > 1) {
+    return DeclarationSkipReason.multipleConstructors;
+  }
+
+  final constructor = unnamedConstructors.single;
+  if (constructor.externalKeyword != null) {
+    return DeclarationSkipReason.externalConstructor;
+  }
+  if (constructor.metadata.isNotEmpty) {
+    return DeclarationSkipReason.constructorMetadata;
+  }
+  if (constructor.documentationComment != null) {
+    return DeclarationSkipReason.constructorComment;
+  }
+  if (constructor.redirectedConstructor != null) {
+    return DeclarationSkipReason.redirectingConstructor;
+  }
+  if (constructor.body is! EmptyFunctionBody) {
+    return DeclarationSkipReason.nonEmptyConstructorBody;
+  }
+  final privateFieldInitializersByName = <String, String>{};
+  for (final initializer in constructor.initializers) {
+    if (initializer is RedirectingConstructorInvocation) {
+      return DeclarationSkipReason.redirectingConstructor;
+    }
+    if (initializer is SuperConstructorInvocation &&
+        initializer.constructorName != null) {
+      return DeclarationSkipReason.namedSuperInitializer;
+    }
+    if (initializer is! ConstructorFieldInitializer) {
+      return DeclarationSkipReason.unsupportedInitializer;
+    }
+    final fieldName = initializer.fieldName.token.lexeme;
+    final expression = initializer.expression;
+    if (!fieldName.startsWith('_') || expression is! SimpleIdentifier) {
+      return DeclarationSkipReason.unsupportedInitializer;
+    }
+    if (privateFieldInitializersByName.containsKey(fieldName)) {
+      return DeclarationSkipReason.unsupportedInitializer;
+    }
+    privateFieldInitializersByName[fieldName] = expression.token.lexeme;
+  }
+
+  if (generativeConstructors.any(
+    (constructor) =>
+        constructor.externalKeyword == null &&
+        constructor != unnamedConstructors.single &&
+        !_isUnnamedConstructor(constructor),
+  )) {
+    return DeclarationSkipReason.namedConstructor;
+  }
+  if (constructor.parameters.parameters.isEmpty &&
+      constructor.constKeyword == null &&
+      declaration.body.members.length != 1) {
+    return DeclarationSkipReason.emptyNonConstConstructorWithMembers;
+  }
+
+  final usedFieldNames = <String>{};
+  final usedPrivateInitializers = <String>{};
+  for (final parameter in constructor.parameters.parameters) {
+    final parameterSkipReason = _parameterSkipReason(
+      source: source,
+      declaration: declaration,
+      parameter: parameter,
+      privateFieldInitializersByName: privateFieldInitializersByName,
+      usedFieldNames: usedFieldNames,
+      usedPrivateInitializers: usedPrivateInitializers,
+    );
+    if (parameterSkipReason != null) {
+      return parameterSkipReason;
+    }
+  }
+
+  if (usedPrivateInitializers.length != privateFieldInitializersByName.length) {
+    return DeclarationSkipReason.unsupportedInitializer;
+  }
+
+  return null;
+}
+
+DeclarationSkipReason? _parameterSkipReason({
+  required String source,
+  required ClassDeclaration declaration,
+  required FormalParameter parameter,
+  required Map<String, String> privateFieldInitializersByName,
+  required Set<String> usedFieldNames,
+  required Set<String> usedPrivateInitializers,
+}) {
+  if (parameter.metadata.isNotEmpty) {
+    return DeclarationSkipReason.parameterMetadata;
+  }
+
+  if (parameter is FieldFormalParameter) {
+    if (parameter.documentationComment != null ||
+        parameter.constFinalOrVarKeyword != null ||
+        parameter.covariantKeyword != null ||
+        parameter.type != null ||
+        parameter.functionTypedSuffix != null) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+    final fieldName = parameter.name.lexeme;
+    final fieldSkipReason = _mappedFieldSkipReason(declaration, fieldName);
+    if (fieldSkipReason != null) {
+      return fieldSkipReason;
+    }
+    if (!usedFieldNames.add(fieldName)) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+    return null;
+  }
+
+  if (parameter is RegularFormalParameter) {
+    if (parameter.documentationComment != null ||
+        parameter.constFinalOrVarKeyword != null ||
+        parameter.covariantKeyword != null ||
+        parameter.functionTypedSuffix != null) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+    final parameterName = parameter.name?.lexeme;
+    final parameterType = parameter.type;
+    if (parameterName == null ||
+        parameterName.startsWith('_') ||
+        parameterType == null ||
+        !parameter.isNamed) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+
+    final fieldName = '_$parameterName';
+    if (privateFieldInitializersByName[fieldName] != parameterName) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+    final fieldSkipReason = _mappedFieldSkipReason(declaration, fieldName);
+    if (fieldSkipReason != null) {
+      return fieldSkipReason;
+    }
+    final field = _eligibleFieldsByName(declaration, source)[fieldName];
+    if (field == null ||
+        _sourceFor(source, parameterType) != field.typeSource) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+    if (!usedFieldNames.add(fieldName)) {
+      return DeclarationSkipReason.unsupportedParameterShape;
+    }
+    usedPrivateInitializers.add(fieldName);
+    return null;
+  }
+
+  if (parameter is SuperFormalParameter &&
+      _isSimpleSuperFormalParameter(parameter)) {
+    return null;
+  }
+
+  return DeclarationSkipReason.unsupportedParameterShape;
+}
+
+DeclarationSkipReason? _mappedFieldSkipReason(
+  ClassDeclaration declaration,
+  String fieldName,
+) {
+  final field = _fieldDeclarationFor(declaration, fieldName);
+  if (field == null) {
+    return DeclarationSkipReason.missingField;
+  }
+
+  final (member, fieldList, variable) = field;
+  if (member.isStatic) {
+    return DeclarationSkipReason.staticField;
+  }
+  if (fieldList.isLate) {
+    return DeclarationSkipReason.lateField;
+  }
+  if (member.externalKeyword != null) {
+    return DeclarationSkipReason.externalField;
+  }
+  if (fieldList.variables.length != 1) {
+    return DeclarationSkipReason.multipleFieldVariables;
+  }
+  if (member.metadata.isNotEmpty ||
+      fieldList.metadata.isNotEmpty ||
+      variable.metadata.isNotEmpty) {
+    return DeclarationSkipReason.fieldMetadata;
+  }
+  if (fieldList.documentationComment != null ||
+      member.documentationComment != null) {
+    return DeclarationSkipReason.fieldComment;
+  }
+  if (variable.initializer != null) {
+    return DeclarationSkipReason.initializedField;
+  }
+  if (fieldList.type == null) {
+    return DeclarationSkipReason.implicitFieldType;
+  }
+  if (member.abstractKeyword != null ||
+      member.covariantKeyword != null ||
+      fieldList.isConst) {
+    return DeclarationSkipReason.unsupportedFieldModifier;
+  }
+  return null;
+}
+
+(FieldDeclaration, VariableDeclarationList, VariableDeclaration)?
+_fieldDeclarationFor(ClassDeclaration declaration, String fieldName) {
+  for (final member in declaration.body.members.whereType<FieldDeclaration>()) {
+    for (final variable in member.fields.variables) {
+      if (variable.name.lexeme == fieldName) {
+        return (member, member.fields, variable);
+      }
+    }
+  }
+  return null;
+}
+
+bool _isUnnamedConstructor(ConstructorDeclaration constructor) {
+  return constructor.name == null && constructor.period == null;
 }
 
 _ClassMigrationPlan? _planClassMigration({
@@ -475,6 +857,36 @@ class _ClassMigrationPlan {
   final Map<String, Object?> reportEntry;
 }
 
+class _SkippedDeclaration {
+  const _SkippedDeclaration({
+    required this.path,
+    required this.declarationKind,
+    required this.declarationName,
+    required this.transform,
+    required this.offset,
+    required this.reason,
+  });
+
+  final String path;
+  final String declarationKind;
+  final String declarationName;
+  final String transform;
+  final int offset;
+  final DeclarationSkipReason reason;
+
+  Map<String, Object?> toJson() {
+    return {
+      'path': path,
+      'declarationKind': declarationKind,
+      'declarationName': declarationName,
+      'transform': transform,
+      'offset': offset,
+      'reason': reason.code,
+      'message': reason.message,
+    };
+  }
+}
+
 class _ParameterMigrationPlan {
   const _ParameterMigrationPlan({
     this.edits = const [],
@@ -506,11 +918,15 @@ class _PlannedFileMigration {
     required this.targetFile,
     required this.transformedSource,
     required this.migratedDeclarations,
+    required this.skippedDeclarations,
+    required this.hasEdits,
   });
 
   final TargetDartFile targetFile;
   final String transformedSource;
   final List<Map<String, Object?>> migratedDeclarations;
+  final List<_SkippedDeclaration> skippedDeclarations;
+  final bool hasEdits;
 }
 
 class _SourceRange {

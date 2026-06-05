@@ -116,9 +116,13 @@ Future<int> _runMigrate(
     dryRun: results.flag('dry-run'),
     changedFiles: migration.changedFiles,
     migratedDeclarations: migration.migratedDeclarations,
+    skippedDeclarations: migration.skippedDeclarations,
     skippedFiles: discovery.skippedFileReports,
     transformCounts: migration.transformCounts,
-    skipReasonCounts: discovery.skipReasonCounts,
+    skipReasonCounts: _combineSkipReasonCounts(
+      discovery.skipReasonCounts,
+      migration.skipReasonCounts,
+    ),
   );
 
   if (results.flag('json')) {
@@ -131,6 +135,20 @@ Future<int> _runMigrate(
     );
   }
   return exitSuccess;
+}
+
+Map<String, int> _combineSkipReasonCounts(
+  Map<String, int> fileSkipCounts,
+  Map<String, int> declarationSkipCounts,
+) {
+  final combined = <String, int>{};
+  for (final entry in fileSkipCounts.entries) {
+    combined[entry.key] = entry.value;
+  }
+  for (final entry in declarationSkipCounts.entries) {
+    combined[entry.key] = (combined[entry.key] ?? 0) + entry.value;
+  }
+  return combined;
 }
 
 String? _validateRoot(String? root) {
@@ -206,6 +224,19 @@ void _writeTextReport(
         'reason': final String reason,
       }) {
         stdout.writeln('- $path ($reason)');
+      }
+    }
+  }
+
+  if (includeSkipped && report.skippedDeclarations.isNotEmpty) {
+    stdout.writeln('Skipped declaration details:');
+    for (final skippedDeclaration in report.skippedDeclarations) {
+      if (skippedDeclaration case {
+        'path': final String path,
+        'declarationName': final String declarationName,
+        'reason': final String reason,
+      }) {
+        stdout.writeln('- $path $declarationName ($reason)');
       }
     }
   }

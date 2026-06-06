@@ -622,5 +622,36 @@ class BlockCommented(
 );
 ''');
     });
+
+    test('removes commented fields with surrounding blank lines', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/documented_member.dart', '''
+class DocumentedMember {
+  /// Stable identifier.
+  final String id;
+
+  DocumentedMember(this.id);
+
+  String label() => id;
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/documented_member.dart',
+        declarationName: 'DocumentedMember',
+      );
+      expect(await formattedFile(root, 'lib/documented_member.dart'), '''
+class DocumentedMember(
+  /// Stable identifier.
+  final String id,
+) {
+  String label() => id;
+}
+''');
+    });
   });
 }

@@ -97,12 +97,10 @@ class _ClassPrimaryConstructorPlanner {
     }
 
     final parameterPlans = <_ParameterMigrationPlan>[];
-    final parametersOffset = constructor.parameters.offset;
     final fieldToParameterPlanner = _FieldToParameterPlanner(
       source: source,
       declaration: declaration,
       privateFieldInitializersByName: privateFieldInitializersByName,
-      parametersOffset: parametersOffset,
     );
     for (final parameter in constructor.parameters.parameters) {
       final parameterDecision =
@@ -151,7 +149,7 @@ class _ClassPrimaryConstructorPlanner {
     final removableMembers = <ClassMember>{
       if (!primaryBodyRequired) constructor,
     };
-    final parametersSource = _sourceFor(source, constructor.parameters);
+    final parametersRange = _rangeFor(constructor.parameters);
 
     for (final parameterPlan in parameterPlans) {
       parameterEdits.addAll(parameterPlan.edits);
@@ -161,7 +159,7 @@ class _ClassPrimaryConstructorPlanner {
     final primaryParameters =
         constructorParameters.isEmpty && constructor.constKeyword == null
         ? null
-        : applySourceEdits(parametersSource, parameterEdits);
+        : applySourceEditsInRange(source, parametersRange, parameterEdits);
     final edits = <SourceEdit>[
       if (constructor.constKeyword != null)
         SourceEdit.insert(declaration.classKeyword.end, ' const'),
@@ -176,15 +174,7 @@ class _ClassPrimaryConstructorPlanner {
 
     if (!primaryBodyRequired &&
         declaration.body.members.length == removableMembers.length) {
-      edits.add(
-        SourceEdit.replace(
-          SourceRange(
-            offset: declaration.body.offset,
-            length: declaration.body.length,
-          ),
-          ';',
-        ),
-      );
+      edits.add(SourceEdit.replace(_rangeFor(declaration.body), ';'));
     } else {
       for (final member in removableMembers) {
         final range = _memberRemovalRange(source, member);

@@ -213,27 +213,17 @@ SourceRange _memberRemovalRange(String source, ClassMember member) {
   final leadingCommentRange = member is FieldDeclaration
       ? _directFieldLeadingCommentRange(source, member)
       : null;
-  var start = leadingCommentRange?.offset ?? member.offset;
-  while (start > 0 && source.codeUnitAt(start - 1) != 10) {
-    start--;
-  }
-
-  var end = member.end;
-  while (end < source.length && source.codeUnitAt(end) != 10) {
-    end++;
-  }
-  if (end < source.length) {
-    end++;
-  }
-  while (end < source.length) {
-    final nextLineEnd = source.indexOf('\n', end);
-    final lineEnd = nextLineEnd == -1 ? source.length : nextLineEnd;
-    if (source.substring(end, lineEnd).trim().isNotEmpty) {
-      break;
-    }
-    end = lineEnd == source.length ? lineEnd : lineEnd + 1;
-  }
-  return SourceRange.fromStartEnd(start: start, end: end);
+  final memberRange = member is FieldDeclaration && leadingCommentRange != null
+      ? SourceRange.fromStartEnd(
+          start: member.firstTokenAfterCommentAndMetadata.offset,
+          end: member.end,
+        )
+      : _rangeFor(member);
+  return sourceLineRemovalRange(
+    source,
+    memberRange,
+    leadingRange: leadingCommentRange,
+  );
 }
 
 SourceRange? _directFieldLeadingCommentRange(

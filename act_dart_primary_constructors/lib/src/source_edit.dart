@@ -9,6 +9,16 @@ class SourceRange {
   final int length;
 
   int get end => offset + length;
+
+  SourceRange relativeTo(SourceRange parent) {
+    _validateRangeWithinParent(this, parent);
+    return SourceRange(offset: offset - parent.offset, length: length);
+  }
+
+  SourceRange absoluteFrom(SourceRange parent) {
+    _validateNestedRange(this, parent);
+    return SourceRange(offset: parent.offset + offset, length: length);
+  }
 }
 
 class SourceEdit {
@@ -32,6 +42,30 @@ class SourceEdit {
   final String replacement;
 
   int get end => offset + length;
+
+  SourceEdit relativeTo(SourceRange parent) {
+    final range = SourceRange(
+      offset: offset,
+      length: length,
+    ).relativeTo(parent);
+    return SourceEdit(
+      offset: range.offset,
+      length: range.length,
+      replacement: replacement,
+    );
+  }
+
+  SourceEdit absoluteFrom(SourceRange parent) {
+    final range = SourceRange(
+      offset: offset,
+      length: length,
+    ).absoluteFrom(parent);
+    return SourceEdit(
+      offset: range.offset,
+      length: range.length,
+      replacement: replacement,
+    );
+  }
 }
 
 class SourceEditException implements Exception {
@@ -64,6 +98,77 @@ String applySourceEdits(String source, List<SourceEdit> edits) {
     result = result.replaceRange(edit.offset, edit.end, edit.replacement);
   }
   return result;
+}
+
+String applySourceEditsInRange(
+  String source,
+  SourceRange range,
+  List<SourceEdit> edits,
+) {
+  validateSourceRange(source, range);
+  final nestedSource = source.substring(range.offset, range.end);
+  return applySourceEdits(nestedSource, [
+    for (final edit in edits) edit.relativeTo(range),
+  ]);
+}
+
+SourceRange sourceLineRemovalRange(
+  String source,
+  SourceRange range, {
+  SourceRange? leadingRange,
+}) {
+  validateSourceRange(source, range);
+  if (leadingRange case final leadingRange?) {
+    validateSourceRange(source, leadingRange);
+    if (leadingRange.end > range.offset) {
+      throw SourceEditException(
+        'Leading range ${leadingRange.offset}..${leadingRange.end} overlaps '
+        'removal range ${range.offset}..${range.end}.',
+      );
+    }
+  }
+
+  var start = leadingRange?.offset ?? range.offset;
+  while (start > 0 && source.codeUnitAt(start - 1) != 10) {
+    start--;
+  }
+
+  var end = range.end;
+  while (end < source.length && source.codeUnitAt(end) != 10) {
+    end++;
+  }
+  if (end < source.length) {
+    end++;
+  }
+  while (end < source.length) {
+    final nextLineEnd = source.indexOf('\n', end);
+    final lineEnd = nextLineEnd == -1 ? source.length : nextLineEnd;
+    if (source.substring(end, lineEnd).trim().isNotEmpty) {
+      break;
+    }
+    end = lineEnd == source.length ? lineEnd : lineEnd + 1;
+  }
+  return SourceRange.fromStartEnd(start: start, end: end);
+}
+
+void validateSourceRange(String source, SourceRange range) {
+  if (range.offset < 0 || range.offset > source.length) {
+    throw SourceEditException(
+      'Source range offset ${range.offset} is outside source bounds '
+      '0..${source.length}.',
+    );
+  }
+  if (range.length < 0) {
+    throw SourceEditException(
+      'Source range length ${range.length} is negative.',
+    );
+  }
+  if (range.end > source.length) {
+    throw SourceEditException(
+      'Source range ${range.offset}..${range.end} is outside source bounds '
+      '0..${source.length}.',
+    );
+  }
 }
 
 void validateSourceEdits(String source, List<SourceEdit> edits) {
@@ -111,4 +216,35 @@ List<({SourceEdit edit, int index})> _indexedEdits(List<SourceEdit> edits) {
     for (var index = 0; index < edits.length; index++)
       (edit: edits[index], index: index),
   ];
+}
+
+void _validateRangeWithinParent(SourceRange range, SourceRange parent) {
+  _validateRangeLengths(range, parent);
+  if (range.offset < parent.offset || range.end > parent.end) {
+    throw SourceEditException(
+      'Range ${range.offset}..${range.end} is outside parent range '
+      '${parent.offset}..${parent.end}.',
+    );
+  }
+}
+
+void _validateNestedRange(SourceRange range, SourceRange parent) {
+  _validateRangeLengths(range, parent);
+  if (range.offset < 0 || range.end > parent.length) {
+    throw SourceEditException(
+      'Nested range ${range.offset}..${range.end} is outside parent range '
+      '0..${parent.length}.',
+    );
+  }
+}
+
+void _validateRangeLengths(SourceRange range, SourceRange parent) {
+  if (range.length < 0) {
+    throw SourceEditException('Range length ${range.length} is negative.');
+  }
+  if (parent.length < 0) {
+    throw SourceEditException(
+      'Parent range length ${parent.length} is negative.',
+    );
+  }
 }

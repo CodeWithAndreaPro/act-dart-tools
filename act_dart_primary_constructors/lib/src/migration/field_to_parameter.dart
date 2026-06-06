@@ -5,13 +5,11 @@ final class _FieldToParameterPlanner {
     required this.source,
     required this.declaration,
     required this.privateFieldInitializersByName,
-    required this.parametersOffset,
   });
 
   final String source;
   final ClassDeclaration declaration;
   final Map<String, String> privateFieldInitializersByName;
-  final int parametersOffset;
   final Set<String> _usedFieldNames = <String>{};
   final Set<String> _usedPrivateInitializers = <String>{};
 
@@ -145,8 +143,8 @@ final class _FieldToParameterPlanner {
         edits: [
           SourceEdit.replace(
             SourceRange.fromStartEnd(
-              start: replacementOffset - parametersOffset,
-              end: replacementEnd - parametersOffset,
+              start: replacementOffset,
+              end: replacementEnd,
             ),
             _declaringParameterSource(field, fieldName, prefix: prefix),
           ),

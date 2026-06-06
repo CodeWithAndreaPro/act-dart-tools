@@ -91,5 +91,102 @@ void main() {
         SourceEdit.replace(SourceRange(offset: 5, length: 2), 'X'),
       ], 'Edit range 5..7 is outside source bounds 0..6.');
     });
+
+    test('applies original-source edits inside a nested source range', () {
+      const source = 'class User(this.id);';
+      final parameterStart = source.indexOf('this.id');
+      final parameterEnd = parameterStart + 'this.id'.length;
+      final parametersRange = SourceRange.fromStartEnd(
+        start: source.indexOf('('),
+        end: source.indexOf(';'),
+      );
+
+      final result = applySourceEditsInRange(source, parametersRange, [
+        SourceEdit.replace(
+          SourceRange.fromStartEnd(start: parameterStart, end: parameterEnd),
+          'final String id',
+        ),
+      ]);
+
+      expect(result, '(final String id)');
+    });
+
+    test('converts node-relative edits back to original source offsets', () {
+      final edit = SourceEdit.replace(
+        SourceRange(offset: 1, length: 1),
+        'X',
+      ).absoluteFrom(const SourceRange(offset: 2, length: 3));
+
+      final result = applySourceEdits('abcdef', [edit]);
+
+      expect(result, 'abcXef');
+    });
+
+    test('rejects invalid nested range intent with stable failures', () {
+      expect(
+        () => SourceEdit.replace(
+          SourceRange(offset: 2, length: 2),
+          'X',
+        ).absoluteFrom(const SourceRange(offset: 5, length: 3)),
+        throwsA(
+          isA<SourceEditException>().having(
+            (error) => error.message,
+            'message',
+            'Nested range 2..4 is outside parent range 0..3.',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'rejects edits outside a nested source range with stable failures',
+      () {
+        expect(
+          () => applySourceEditsInRange(
+            'abcdef',
+            const SourceRange(offset: 2, length: 2),
+            [SourceEdit.replace(SourceRange(offset: 1, length: 1), 'X')],
+          ),
+          throwsA(
+            isA<SourceEditException>().having(
+              (error) => error.message,
+              'message',
+              'Range 1..2 is outside parent range 2..4.',
+            ),
+          ),
+        );
+      },
+    );
+
+    test('finds line removal ranges with comments and blank lines', () {
+      const source = '''
+class User {
+  /// Stable identifier.
+  final String id;
+
+  String label() => id;
+}
+''';
+      final commentStart = source.indexOf('///');
+      final commentEnd = source.indexOf('\n', commentStart);
+      final fieldStart = source.indexOf('final String id;');
+      final fieldEnd = fieldStart + 'final String id;'.length;
+
+      final range = sourceLineRemovalRange(
+        source,
+        SourceRange.fromStartEnd(start: fieldStart, end: fieldEnd),
+        leadingRange: SourceRange.fromStartEnd(
+          start: commentStart,
+          end: commentEnd,
+        ),
+      );
+      final result = applySourceEdits(source, [SourceEdit.delete(range)]);
+
+      expect(result, '''
+class User {
+  String label() => id;
+}
+''');
+    });
   });
 }

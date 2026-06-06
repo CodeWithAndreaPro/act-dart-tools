@@ -210,27 +210,18 @@ class _ParameterMigrationPlan {
   final List<FieldDeclaration> removableFields;
 }
 
-class _ConstructorInitializerClassification {
-  const _ConstructorInitializerClassification.plan(this.plan)
-    : skipReason = null;
-
-  const _ConstructorInitializerClassification.skip(this.skipReason)
-    : plan = null;
-
-  final _ConstructorInitializerPlan? plan;
-  final DeclarationSkipReason? skipReason;
-}
-
-class _ConstructorInitializerPlan {
-  const _ConstructorInitializerPlan({
+class _ConstructorInitializationPlan {
+  const _ConstructorInitializationPlan({
     required this.privateFieldInitializersByName,
     required this.fieldInitializers,
-    required this.retainedInitializers,
+    required this.primaryBodySource,
   });
 
   final Map<String, String> privateFieldInitializersByName;
   final List<_FieldInitializerMigration> fieldInitializers;
-  final List<ConstructorInitializer> retainedInitializers;
+  final String? primaryBodySource;
+
+  bool get primaryBodyRequired => primaryBodySource != null;
 }
 
 class _FieldInitializerMigration {

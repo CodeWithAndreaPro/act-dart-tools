@@ -498,5 +498,26 @@ class FieldInitializingBody {
             'Constructor bodies that initialize instance fields are not supported.',
       );
     });
+
+    test('skips compound field writes in constructor bodies precisely', () async {
+      const originalSource = '''
+class CompoundFieldWriteBody {
+  int count;
+
+  CompoundFieldWriteBody(this.count, int delta) {
+    count += delta;
+  }
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/body_field_write.dart',
+        originalSource: originalSource,
+        declarationName: 'CompoundFieldWriteBody',
+        reason: 'fieldInitializingConstructorBody',
+        message:
+            'Constructor bodies that initialize instance fields are not supported.',
+      );
+    });
   });
 }

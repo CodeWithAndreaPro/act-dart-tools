@@ -63,25 +63,20 @@ class _ClassPrimaryConstructorPlanner {
         DeclarationSkipReason.redirectingConstructor,
       );
     }
-    final bodySkipReason = _constructorBodySkipReason(
-      declaration: declaration,
-      constructor: constructor,
-    );
-    if (bodySkipReason != null) {
-      return _SkippedClassPrimaryConstructor(bodySkipReason);
-    }
-    final initializerClassification = _classifyConstructorInitializers(
+    final initializationDecision = _ConstructorInitializationPlanner(
       source: source,
       declaration: declaration,
       constructor: constructor,
-      parameterNames: _constructorParameterNames(constructor),
-    );
-    if (initializerClassification.skipReason case final skipReason?) {
-      return _SkippedClassPrimaryConstructor(skipReason);
+    ).decide();
+    final _ConstructorInitializationPlan initializationPlan;
+    switch (initializationDecision) {
+      case _PlannedConstructorInitialization(:final plan):
+        initializationPlan = plan;
+      case _SkippedConstructorInitialization(:final reason):
+        return _SkippedClassPrimaryConstructor(reason);
     }
-    final initializerPlan = initializerClassification.plan!;
     final privateFieldInitializersByName =
-        initializerPlan.privateFieldInitializersByName;
+        initializationPlan.privateFieldInitializersByName;
 
     if (generativeConstructors.any(
       (constructor) =>
@@ -128,7 +123,7 @@ class _ClassPrimaryConstructorPlanner {
         DeclarationSkipReason.unsupportedInitializer,
       );
     }
-    for (final fieldInitializer in initializerPlan.fieldInitializers) {
+    for (final fieldInitializer in initializationPlan.fieldInitializers) {
       if (fieldToParameterPlanner.usesField(fieldInitializer.fieldName)) {
         return const _SkippedClassPrimaryConstructor(
           DeclarationSkipReason.unsupportedInitializer,
@@ -139,7 +134,7 @@ class _ClassPrimaryConstructorPlanner {
     return _MigratedClassPrimaryConstructor(
       _buildMigrationPlan(
         constructor: constructor,
-        initializerPlan: initializerPlan,
+        initializationPlan: initializationPlan,
         parameterPlans: parameterPlans,
       ),
     );
@@ -147,15 +142,12 @@ class _ClassPrimaryConstructorPlanner {
 
   _ClassMigrationPlan _buildMigrationPlan({
     required ConstructorDeclaration constructor,
-    required _ConstructorInitializerPlan initializerPlan,
+    required _ConstructorInitializationPlan initializationPlan,
     required List<_ParameterMigrationPlan> parameterPlans,
   }) {
     final constructorParameters = constructor.parameters.parameters;
     final parameterEdits = <SourceEdit>[];
-    final retainedInitializers = initializerPlan.retainedInitializers;
-    final primaryBodyRequired =
-        retainedInitializers.isNotEmpty ||
-        constructor.body is BlockFunctionBody;
+    final primaryBodyRequired = initializationPlan.primaryBodyRequired;
     final removableMembers = <ClassMember>{
       if (!primaryBodyRequired) constructor,
     };
@@ -183,7 +175,7 @@ class _ClassPrimaryConstructorPlanner {
           length: 0,
           replacement: primaryParameters,
         ),
-      for (final fieldInitializer in initializerPlan.fieldInitializers)
+      for (final fieldInitializer in initializationPlan.fieldInitializers)
         SourceEdit(
           offset: fieldInitializer.variable.end,
           length: 0,
@@ -217,10 +209,7 @@ class _ClassPrimaryConstructorPlanner {
           SourceEdit(
             offset: range.offset,
             length: range.length,
-            replacement: _primaryConstructorBodySource(
-              constructor: constructor,
-              retainedInitializers: retainedInitializers,
-            ),
+            replacement: initializationPlan.primaryBodySource!,
           ),
         );
       }
@@ -236,21 +225,6 @@ class _ClassPrimaryConstructorPlanner {
         offset: declaration.offset,
       ),
     );
-  }
-
-  String _primaryConstructorBodySource({
-    required ConstructorDeclaration constructor,
-    required List<ConstructorInitializer> retainedInitializers,
-  }) {
-    final indent = _lineIndentation(source, constructor.offset);
-    final initializerSource = retainedInitializers.isEmpty
-        ? ''
-        : ' : ${retainedInitializers.map((initializer) => _sourceFor(source, initializer)).join(', ')}';
-    final body = constructor.body;
-    final bodySource = body is BlockFunctionBody
-        ? ' ${_sourceFor(source, body)}'
-        : ';';
-    return '${indent}this$initializerSource$bodySource\n';
   }
 }
 

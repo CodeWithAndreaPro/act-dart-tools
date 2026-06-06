@@ -9,10 +9,9 @@ import 'discovery.dart';
 import 'source_edit.dart';
 
 part 'migration/class_primary_constructor.dart';
-part 'migration/constructor_body_safety.dart';
+part 'migration/constructor_initialization.dart';
 part 'migration/engine.dart';
 part 'migration/field_comments.dart';
 part 'migration/field_to_parameter.dart';
-part 'migration/initializer_handling.dart';
 part 'migration/models.dart';
 part 'migration/source_helpers.dart';

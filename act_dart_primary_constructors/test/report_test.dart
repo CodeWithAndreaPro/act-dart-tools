@@ -1,6 +1,5 @@
 import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
 import 'package:act_dart_primary_constructors/src/discovery.dart';
-import 'package:act_dart_primary_constructors/src/migration.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -34,7 +33,10 @@ void main() {
           migratedDeclarations: [],
           skippedDeclarations: [],
           transformCounts: {},
-          skipReasonCounts: {'fieldMetadata': 2, 'multipleConstructors': 1},
+          skipReasonCounts: {
+            DeclarationSkipReason.fieldMetadata: 2,
+            DeclarationSkipReason.multipleConstructors: 1,
+          },
         ),
       );
 
@@ -76,33 +78,54 @@ void main() {
         migration: const MigrationRunResult(
           changedFiles: ['lib/z.dart', 'lib/a.dart'],
           migratedDeclarations: [
-            {
-              'path': 'lib/z.dart',
-              'declarationKind': 'class',
-              'declarationName': 'Z',
-              'transform': 'primaryConstructor',
-              'offset': 20,
-            },
-            {
-              'path': 'lib/a.dart',
-              'declarationKind': 'class',
-              'declarationName': 'A',
-              'transform': 'primaryConstructor',
-              'offset': 10,
-            },
+            MigratedDeclarationReport(
+              path: 'lib/z.dart',
+              declarationKind: 'class',
+              declarationName: 'Z',
+              transform: 'primaryConstructor',
+              offset: 20,
+            ),
+            MigratedDeclarationReport(
+              path: 'lib/a.dart',
+              declarationKind: 'class',
+              declarationName: 'A',
+              transform: 'primaryConstructor',
+              offset: 10,
+            ),
           ],
-          skippedDeclarations: [],
+          skippedDeclarations: [
+            SkippedDeclarationReport(
+              path: 'lib/z.dart',
+              declarationKind: 'class',
+              declarationName: 'ZSkip',
+              transform: 'primaryConstructor',
+              offset: 30,
+              reason: DeclarationSkipReason.namedConstructor,
+            ),
+            SkippedDeclarationReport(
+              path: 'lib/a.dart',
+              declarationKind: 'class',
+              declarationName: 'ASkip',
+              transform: 'primaryConstructor',
+              offset: 5,
+              reason: DeclarationSkipReason.fieldMetadata,
+            ),
+          ],
           transformCounts: {'primaryConstructor': 2},
-          skipReasonCounts: {},
+          skipReasonCounts: {
+            DeclarationSkipReason.namedConstructor: 1,
+            DeclarationSkipReason.fieldMetadata: 1,
+          },
         ),
       );
+      final json = report.toJson();
 
       expect(report.changedFiles, ['lib/a.dart', 'lib/z.dart']);
       expect(report.skippedFiles, [
         {'path': 'lib/a.g.dart', 'reason': 'generatedFile'},
         {'path': 'lib/z.g.dart', 'reason': 'generatedFile'},
       ]);
-      expect(report.migratedDeclarations, [
+      expect(json['migratedDeclarations'], [
         {
           'path': 'lib/a.dart',
           'declarationKind': 'class',
@@ -118,6 +141,26 @@ void main() {
           'offset': 20,
         },
       ]);
+      expect(json['skippedDeclarations'], [
+        {
+          'path': 'lib/a.dart',
+          'declarationKind': 'class',
+          'declarationName': 'ASkip',
+          'transform': 'primaryConstructor',
+          'offset': 5,
+          'reason': 'fieldMetadata',
+          'message': 'Field metadata is not moved to declaring parameters.',
+        },
+        {
+          'path': 'lib/z.dart',
+          'declarationKind': 'class',
+          'declarationName': 'ZSkip',
+          'transform': 'primaryConstructor',
+          'offset': 30,
+          'reason': 'namedConstructor',
+          'message': 'Named generative constructors are not supported.',
+        },
+      ]);
     });
 
     test('text output summarizes run facts and include-skipped details', () {
@@ -127,23 +170,23 @@ void main() {
         dryRun: true,
         changedFiles: ['lib/model.dart'],
         migratedDeclarations: [
-          {
-            'path': 'lib/model.dart',
-            'declarationKind': 'class',
-            'declarationName': 'Model',
-            'transform': 'primaryConstructor',
-            'offset': 0,
-          },
+          MigratedDeclarationReport(
+            path: 'lib/model.dart',
+            declarationKind: 'class',
+            declarationName: 'Model',
+            transform: 'primaryConstructor',
+            offset: 0,
+          ),
         ],
         skippedDeclarations: [
-          {
-            'path': 'lib/skip.dart',
-            'declarationKind': 'class',
-            'declarationName': 'Skip',
-            'transform': 'primaryConstructor',
-            'offset': 0,
-            'reason': 'fieldMetadata',
-          },
+          SkippedDeclarationReport(
+            path: 'lib/skip.dart',
+            declarationKind: 'class',
+            declarationName: 'Skip',
+            transform: 'primaryConstructor',
+            offset: 0,
+            reason: DeclarationSkipReason.fieldMetadata,
+          ),
         ],
         skippedFiles: [
           {'path': 'lib/model.g.dart', 'reason': 'generatedFile'},

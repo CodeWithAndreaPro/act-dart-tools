@@ -59,7 +59,7 @@ class _TargetFileDeclarationPlanner {
         ),
       _SkippedClassPrimaryConstructor(:final reason) =>
         _DeclarationMigrationPlan(
-          skippedDeclaration: _SkippedDeclaration(
+          skippedDeclaration: SkippedDeclarationReport(
             path: targetFile.relativePath,
             declarationKind: 'class',
             declarationName: declaration.namePart.typeName.lexeme,
@@ -82,8 +82,8 @@ class _TargetFileMigrationPlanBuilder {
   final TargetDartFile targetFile;
   final String source;
   final _edits = <SourceEdit>[];
-  final _migratedDeclarations = <_MigratedDeclaration>[];
-  final _skippedDeclarations = <_SkippedDeclaration>[];
+  final _migratedDeclarations = <MigratedDeclarationReport>[];
+  final _skippedDeclarations = <SkippedDeclarationReport>[];
 
   void addDeclarationPlan(_DeclarationMigrationPlan plan) {
     _edits.addAll(plan.edits);

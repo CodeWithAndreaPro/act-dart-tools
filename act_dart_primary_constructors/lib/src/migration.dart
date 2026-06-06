@@ -6,6 +6,7 @@ import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
 import 'discovery.dart';
+import 'report.dart';
 import 'source_edit.dart';
 
 part 'migration/class_primary_constructor.dart';

@@ -200,7 +200,7 @@ class _ClassPrimaryConstructorPlanner {
 
     return _ClassMigrationPlan(
       edits: edits,
-      migratedDeclaration: _MigratedDeclaration(
+      migratedDeclaration: MigratedDeclarationReport(
         path: targetFile.relativePath,
         declarationKind: 'class',
         declarationName: declaration.namePart.typeName.lexeme,

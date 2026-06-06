@@ -1,10 +1,166 @@
 import 'dart:convert';
 
 import 'discovery.dart';
-import 'migration.dart';
 import 'version.dart';
 
 const schemaVersion = 1;
+const primaryConstructorTransform = 'primaryConstructor';
+
+enum DeclarationSkipReason {
+  multipleConstructors(
+    'multipleConstructors',
+    'Multiple generative constructors are not supported.',
+  ),
+  namedConstructor(
+    'namedConstructor',
+    'Named generative constructors are not supported.',
+  ),
+  externalConstructor(
+    'externalConstructor',
+    'External constructors are not supported.',
+  ),
+  redirectingConstructor(
+    'redirectingConstructor',
+    'Redirecting constructors are not supported.',
+  ),
+  nonEmptyConstructorBody(
+    'nonEmptyConstructorBody',
+    'Non-empty constructor bodies are not supported.',
+  ),
+  fieldInitializingConstructorBody(
+    'fieldInitializingConstructorBody',
+    'Constructor bodies that initialize instance fields are not supported.',
+  ),
+  unsupportedConstructorBody(
+    'unsupportedConstructorBody',
+    'This constructor body shape is not supported.',
+  ),
+  emptyNonConstConstructorWithMembers(
+    'emptyNonConstConstructorWithMembers',
+    'Empty non-const constructors without parameters are only supported when '
+        'the class body can collapse.',
+  ),
+  constructorMetadata(
+    'constructorMetadata',
+    'Constructor metadata is not moved to primary constructors.',
+  ),
+  constructorComment(
+    'constructorComment',
+    'Constructor comments are not moved to primary constructors.',
+  ),
+  parameterMetadata(
+    'parameterMetadata',
+    'Parameter metadata is not moved to declaring parameters.',
+  ),
+  fieldMetadata(
+    'fieldMetadata',
+    'Field metadata is not moved to declaring parameters.',
+  ),
+  fieldComment(
+    'fieldComment',
+    'Ambiguous field comments are not moved to declaring parameters.',
+  ),
+  missingField(
+    'missingField',
+    'A constructor parameter maps to a missing field.',
+  ),
+  staticField(
+    'staticField',
+    'Static fields cannot become declaring parameters.',
+  ),
+  lateField('lateField', 'Late fields cannot become declaring parameters.'),
+  externalField(
+    'externalField',
+    'External fields cannot become declaring parameters.',
+  ),
+  initializedField(
+    'initializedField',
+    'Initialized fields cannot become declaring parameters.',
+  ),
+  implicitFieldType(
+    'implicitFieldType',
+    'Fields with implicit types cannot become declaring parameters.',
+  ),
+  multipleFieldVariables(
+    'multipleFieldVariables',
+    'Multi-variable field declarations cannot become declaring parameters.',
+  ),
+  unsupportedFieldModifier(
+    'unsupportedFieldModifier',
+    'This field modifier is not supported for declaring parameters.',
+  ),
+  unsupportedParameterShape(
+    'unsupportedParameterShape',
+    'This constructor parameter shape is not supported.',
+  ),
+  unsafeInitializerDependency(
+    'unsafeInitializerDependency',
+    'Initializer field assignments must depend only on constructor parameters.',
+  ),
+  unsupportedInitializer(
+    'unsupportedInitializer',
+    'This constructor initializer is not supported.',
+  ),
+  namedSuperInitializer(
+    'namedSuperInitializer',
+    'Named super constructor initializers are not supported.',
+  );
+
+  const DeclarationSkipReason(this.code, this.message);
+
+  final String code;
+  final String message;
+}
+
+class MigrationRunResult {
+  const MigrationRunResult({
+    required this.changedFiles,
+    required this.migratedDeclarations,
+    required this.skippedDeclarations,
+    required this.transformCounts,
+    required this.skipReasonCounts,
+  });
+
+  final List<String> changedFiles;
+  final List<MigratedDeclarationReport> migratedDeclarations;
+  final List<SkippedDeclarationReport> skippedDeclarations;
+  final Map<String, int> transformCounts;
+  final Map<DeclarationSkipReason, int> skipReasonCounts;
+}
+
+class MigratedDeclarationReport {
+  const MigratedDeclarationReport({
+    required this.path,
+    required this.declarationKind,
+    required this.declarationName,
+    required this.transform,
+    required this.offset,
+  });
+
+  final String path;
+  final String declarationKind;
+  final String declarationName;
+  final String transform;
+  final int offset;
+}
+
+class SkippedDeclarationReport {
+  const SkippedDeclarationReport({
+    required this.path,
+    required this.declarationKind,
+    required this.declarationName,
+    required this.transform,
+    required this.offset,
+    required this.reason,
+  });
+
+  final String path;
+  final String declarationKind;
+  final String declarationName;
+  final String transform;
+  final int offset;
+  final DeclarationSkipReason reason;
+}
 
 class MigrationReport {
   const MigrationReport({
@@ -32,10 +188,10 @@ class MigrationReport {
       mode: mode,
       dryRun: dryRun,
       changedFiles: _sortedStrings(migration.changedFiles),
-      migratedDeclarations: _sortedDeclarationReports(
+      migratedDeclarations: _sortedMigratedDeclarationReports(
         migration.migratedDeclarations,
       ),
-      skippedDeclarations: _sortedDeclarationReports(
+      skippedDeclarations: _sortedSkippedDeclarationReports(
         migration.skippedDeclarations,
       ),
       skippedFiles: _sortedPathReports(discovery.skippedFileReports),
@@ -51,9 +207,9 @@ class MigrationReport {
   final String root;
   final String mode;
   final bool dryRun;
-  final List<Object?> changedFiles;
-  final List<Object?> migratedDeclarations;
-  final List<Object?> skippedDeclarations;
+  final List<String> changedFiles;
+  final List<MigratedDeclarationReport> migratedDeclarations;
+  final List<SkippedDeclarationReport> skippedDeclarations;
   final List<Object?> skippedFiles;
   final List<Object?> skippedDirectories;
   final Map<String, int> transformCounts;
@@ -69,8 +225,14 @@ class MigrationReport {
       'dryRun': dryRun,
       'formatted': false,
       'changedFiles': changedFiles,
-      'migratedDeclarations': migratedDeclarations,
-      'skippedDeclarations': skippedDeclarations,
+      'migratedDeclarations': [
+        for (final declaration in migratedDeclarations)
+          _migratedDeclarationToJson(declaration),
+      ],
+      'skippedDeclarations': [
+        for (final declaration in skippedDeclarations)
+          _skippedDeclarationToJson(declaration),
+      ],
       'skippedFiles': skippedFiles,
       'skippedDirectories': skippedDirectories,
       'transformCounts': transformCounts,
@@ -121,13 +283,11 @@ class MigrationReport {
     if (includeSkipped && skippedDeclarations.isNotEmpty) {
       buffer.writeln('Skipped declaration details:');
       for (final skippedDeclaration in skippedDeclarations) {
-        if (skippedDeclaration case {
-          'path': final String path,
-          'declarationName': final String declarationName,
-          'reason': final String reason,
-        }) {
-          buffer.writeln('- $path $declarationName ($reason)');
-        }
+        buffer.writeln(
+          '- ${skippedDeclaration.path} '
+          '${skippedDeclaration.declarationName} '
+          '(${skippedDeclaration.reason.code})',
+        );
       }
     }
 
@@ -172,41 +332,111 @@ List<Map<String, Object?>> _sortedPathReports(
   });
 }
 
-List<Map<String, Object?>> _sortedDeclarationReports(
-  List<Map<String, Object?>> reports,
+List<MigratedDeclarationReport> _sortedMigratedDeclarationReports(
+  List<MigratedDeclarationReport> reports,
 ) {
   return [...reports]..sort((a, b) {
-    final pathComparison = _reportString(
-      a,
-      'path',
-    ).compareTo(_reportString(b, 'path'));
-    if (pathComparison != 0) {
-      return pathComparison;
-    }
-
-    final offsetComparison = _reportOffset(a).compareTo(_reportOffset(b));
-    if (offsetComparison != 0) {
-      return offsetComparison;
-    }
-
-    final transformComparison = _reportString(
-      a,
-      'transform',
-    ).compareTo(_reportString(b, 'transform'));
-    if (transformComparison != 0) {
-      return transformComparison;
-    }
-
-    final nameComparison = _reportString(
-      a,
-      'declarationName',
-    ).compareTo(_reportString(b, 'declarationName'));
-    if (nameComparison != 0) {
-      return nameComparison;
-    }
-
-    return _reportString(a, 'reason').compareTo(_reportString(b, 'reason'));
+    return _compareDeclarationSortValues(
+      _migratedDeclarationSortValues(a),
+      _migratedDeclarationSortValues(b),
+    );
   });
+}
+
+List<SkippedDeclarationReport> _sortedSkippedDeclarationReports(
+  List<SkippedDeclarationReport> reports,
+) {
+  return [...reports]..sort((a, b) {
+    return _compareDeclarationSortValues(
+      _skippedDeclarationSortValues(a),
+      _skippedDeclarationSortValues(b),
+    );
+  });
+}
+
+Map<String, Object?> _migratedDeclarationToJson(
+  MigratedDeclarationReport declaration,
+) {
+  return {
+    'path': declaration.path,
+    'declarationKind': declaration.declarationKind,
+    'declarationName': declaration.declarationName,
+    'transform': declaration.transform,
+    'offset': declaration.offset,
+  };
+}
+
+Map<String, Object?> _skippedDeclarationToJson(
+  SkippedDeclarationReport declaration,
+) {
+  return {
+    'path': declaration.path,
+    'declarationKind': declaration.declarationKind,
+    'declarationName': declaration.declarationName,
+    'transform': declaration.transform,
+    'offset': declaration.offset,
+    'reason': declaration.reason.code,
+    'message': declaration.reason.message,
+  };
+}
+
+typedef _DeclarationSortValues = ({
+  String path,
+  int offset,
+  String transform,
+  String declarationName,
+  String reason,
+});
+
+_DeclarationSortValues _migratedDeclarationSortValues(
+  MigratedDeclarationReport declaration,
+) {
+  return (
+    path: declaration.path,
+    offset: declaration.offset,
+    transform: declaration.transform,
+    declarationName: declaration.declarationName,
+    reason: '',
+  );
+}
+
+_DeclarationSortValues _skippedDeclarationSortValues(
+  SkippedDeclarationReport declaration,
+) {
+  return (
+    path: declaration.path,
+    offset: declaration.offset,
+    transform: declaration.transform,
+    declarationName: declaration.declarationName,
+    reason: declaration.reason.code,
+  );
+}
+
+int _compareDeclarationSortValues(
+  _DeclarationSortValues a,
+  _DeclarationSortValues b,
+) {
+  final pathComparison = a.path.compareTo(b.path);
+  if (pathComparison != 0) {
+    return pathComparison;
+  }
+
+  final offsetComparison = a.offset.compareTo(b.offset);
+  if (offsetComparison != 0) {
+    return offsetComparison;
+  }
+
+  final transformComparison = a.transform.compareTo(b.transform);
+  if (transformComparison != 0) {
+    return transformComparison;
+  }
+
+  final nameComparison = a.declarationName.compareTo(b.declarationName);
+  if (nameComparison != 0) {
+    return nameComparison;
+  }
+
+  return a.reason.compareTo(b.reason);
 }
 
 Map<String, int> _orderedTransformCounts(Map<String, int> counts) {
@@ -247,23 +477,7 @@ Map<String, int> _combinedSkipReasonCounts({
     _addCount(combined, reason.code, fileAndDirectoryCounts[reason]!);
   }
   for (final reason in DeclarationSkipReason.values) {
-    _addCount(
-      combined,
-      reason.code,
-      migration.skipReasonCounts[reason.code] ?? 0,
-    );
-  }
-
-  final knownDeclarationReasons = {
-    for (final reason in DeclarationSkipReason.values) reason.code,
-  };
-  final remainingReasons =
-      migration.skipReasonCounts.keys
-          .where((reason) => !knownDeclarationReasons.contains(reason))
-          .toList()
-        ..sort();
-  for (final reason in remainingReasons) {
-    _addCount(combined, reason, migration.skipReasonCounts[reason] ?? 0);
+    _addCount(combined, reason.code, migration.skipReasonCounts[reason] ?? 0);
   }
   return combined;
 }
@@ -279,13 +493,6 @@ String _reportString(Map<String, Object?> report, String key) {
   return switch (report[key]) {
     final String value => value,
     _ => '',
-  };
-}
-
-int _reportOffset(Map<String, Object?> report) {
-  return switch (report['offset']) {
-    final int value => value,
-    _ => -1,
   };
 }
 

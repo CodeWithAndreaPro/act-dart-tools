@@ -60,8 +60,8 @@ class _MigrationEngine {
 
 class _MigrationReportAccumulator {
   final _changedFiles = <String>[];
-  final _migratedDeclarations = <_MigratedDeclaration>[];
-  final _skippedDeclarations = <_SkippedDeclaration>[];
+  final _migratedDeclarations = <MigratedDeclarationReport>[];
+  final _skippedDeclarations = <SkippedDeclarationReport>[];
   final _transformCounts = <String, int>{};
   final _skipReasonCounts = {
     for (final reason in DeclarationSkipReason.values) reason: 0,
@@ -87,12 +87,8 @@ class _MigrationReportAccumulator {
   MigrationRunResult toResult() {
     return MigrationRunResult(
       changedFiles: _changedFiles,
-      migratedDeclarations: [
-        for (final declaration in _migratedDeclarations) declaration.toJson(),
-      ],
-      skippedDeclarations: [
-        for (final declaration in _skippedDeclarations) declaration.toJson(),
-      ],
+      migratedDeclarations: _migratedDeclarations,
+      skippedDeclarations: _skippedDeclarations,
       transformCounts: {
         if ((_transformCounts[primaryConstructorTransform] ?? 0) != 0)
           primaryConstructorTransform:
@@ -101,7 +97,7 @@ class _MigrationReportAccumulator {
       skipReasonCounts: {
         for (final reason in DeclarationSkipReason.values)
           if (_skipReasonCounts[reason] != 0)
-            reason.code: _skipReasonCounts[reason]!,
+            reason: _skipReasonCounts[reason]!,
       },
     );
   }

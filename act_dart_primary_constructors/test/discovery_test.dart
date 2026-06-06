@@ -44,10 +44,13 @@ void main() {
       final files = discoverTargetPackageFiles(root);
 
       expect(discoveredPaths(files), ['lib/real.dart']);
-      expect(skippedFileReports(files), [
-        {'path': 'lib/app_localizations_en.dart', 'reason': 'generatedFile'},
-        {'path': 'lib/marker.dart', 'reason': 'generatedFile'},
-        {'path': 'lib/model.g.dart', 'reason': 'generatedFile'},
+      expect(skippedFileFacts(files), [
+        (
+          path: 'lib/app_localizations_en.dart',
+          reason: FileSkipReason.generatedFile,
+        ),
+        (path: 'lib/marker.dart', reason: FileSkipReason.generatedFile),
+        (path: 'lib/model.g.dart', reason: FileSkipReason.generatedFile),
       ]);
       expect(files.skippedDirectories, isEmpty);
     });
@@ -65,11 +68,11 @@ void main() {
 
       expect(discoveredPaths(files), ['lib/source.dart']);
       expect(files.skippedFiles, isEmpty);
-      expect(skippedDirectoryReports(files), [
-        {'path': '.dart_tool', 'reason': 'excludedDirectory'},
-        {'path': '.vscode', 'reason': 'excludedDirectory'},
-        {'path': 'build', 'reason': 'excludedDirectory'},
-        {'path': 'coverage', 'reason': 'excludedDirectory'},
+      expect(skippedDirectoryFacts(files), [
+        (path: '.dart_tool', reason: FileSkipReason.excludedDirectory),
+        (path: '.vscode', reason: FileSkipReason.excludedDirectory),
+        (path: 'build', reason: FileSkipReason.excludedDirectory),
+        (path: 'coverage', reason: FileSkipReason.excludedDirectory),
       ]);
     });
 
@@ -87,8 +90,8 @@ void main() {
 
       expect(discoveredPaths(rootFiles), ['lib/root.dart']);
       expect(rootFiles.skippedFiles, isEmpty);
-      expect(skippedDirectoryReports(rootFiles), [
-        {'path': 'packages/nested', 'reason': 'nestedPackage'},
+      expect(skippedDirectoryFacts(rootFiles), [
+        (path: 'packages/nested', reason: FileSkipReason.nestedPackage),
       ]);
       expect(discoveredPaths(nestedFiles), ['lib/nested.dart']);
       expect(nestedFiles.skippedFiles, isEmpty);
@@ -118,9 +121,9 @@ void main() {
 
       expect(discoveredPaths(files), ['lib/root.dart']);
       expect(files.skippedFiles, isEmpty);
-      expect(skippedDirectoryReports(files), [
-        {'path': 'repos/nested', 'reason': 'nestedRepository'},
-        {'path': 'worktrees/checkout', 'reason': 'nestedRepository'},
+      expect(skippedDirectoryFacts(files), [
+        (path: 'repos/nested', reason: FileSkipReason.nestedRepository),
+        (path: 'worktrees/checkout', reason: FileSkipReason.nestedRepository),
       ]);
     });
 
@@ -134,8 +137,8 @@ void main() {
 
       expect(discoveredPaths(files), ['lib/source.dart']);
       expect(files.skippedFiles, isEmpty);
-      expect(skippedDirectoryReports(files), [
-        {'path': 'build', 'reason': 'excludedDirectory'},
+      expect(skippedDirectoryFacts(files), [
+        (path: 'build', reason: FileSkipReason.excludedDirectory),
       ]);
     });
 
@@ -150,11 +153,11 @@ void main() {
       final files = discoverTargetPackageFiles(root);
 
       expect(discoveredPaths(files), ['lib/a.dart', 'test/z_test.dart']);
-      expect(skippedFileReports(files), [
-        {'path': 'lib/z.g.dart', 'reason': 'generatedFile'},
+      expect(skippedFileFacts(files), [
+        (path: 'lib/z.g.dart', reason: FileSkipReason.generatedFile),
       ]);
-      expect(skippedDirectoryReports(files), [
-        {'path': '.dart_tool', 'reason': 'excludedDirectory'},
+      expect(skippedDirectoryFacts(files), [
+        (path: '.dart_tool', reason: FileSkipReason.excludedDirectory),
       ]);
     });
   });

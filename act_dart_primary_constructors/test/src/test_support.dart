@@ -128,10 +128,20 @@ List<String> discoveredPaths(TargetPackageFiles files) {
   return [for (final file in files.dartFiles) file.relativePath];
 }
 
-List<Map<String, Object?>> skippedFileReports(TargetPackageFiles files) {
-  return [for (final file in files.skippedFiles) file.toJson()];
+List<({String path, FileSkipReason reason})> skippedFileFacts(
+  TargetPackageFiles files,
+) {
+  return [
+    for (final file in files.skippedFiles)
+      (path: file.relativePath, reason: file.reason),
+  ];
 }
 
-List<Map<String, Object?>> skippedDirectoryReports(TargetPackageFiles files) {
-  return [for (final directory in files.skippedDirectories) directory.toJson()];
+List<({String path, FileSkipReason reason})> skippedDirectoryFacts(
+  TargetPackageFiles files,
+) {
+  return [
+    for (final directory in files.skippedDirectories)
+      (path: directory.relativePath, reason: directory.reason),
+  ];
 }

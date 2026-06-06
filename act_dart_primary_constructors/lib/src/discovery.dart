@@ -21,28 +21,6 @@ class TargetPackageFiles {
   final List<TargetDartFile> dartFiles;
   final List<SkippedDartFile> skippedFiles;
   final List<SkippedDirectory> skippedDirectories;
-
-  List<Map<String, Object?>> get skippedFileReports {
-    return [for (final file in skippedFiles) file.toJson()];
-  }
-
-  List<Map<String, Object?>> get skippedDirectoryReports {
-    return [for (final directory in skippedDirectories) directory.toJson()];
-  }
-
-  Map<String, int> get skipReasonCounts {
-    final counts = {for (final reason in FileSkipReason.values) reason: 0};
-    for (final file in skippedFiles) {
-      counts[file.reason] = counts[file.reason]! + 1;
-    }
-    for (final directory in skippedDirectories) {
-      counts[directory.reason] = counts[directory.reason]! + 1;
-    }
-    return {
-      for (final reason in FileSkipReason.values)
-        if (counts[reason] != 0) reason.code: counts[reason]!,
-    };
-  }
 }
 
 class TargetDartFile {
@@ -57,10 +35,6 @@ class SkippedDartFile {
 
   final String relativePath;
   final FileSkipReason reason;
-
-  Map<String, Object?> toJson() {
-    return {'path': relativePath, 'reason': reason.code};
-  }
 }
 
 class SkippedDirectory {
@@ -68,10 +42,6 @@ class SkippedDirectory {
 
   final String relativePath;
   final FileSkipReason reason;
-
-  Map<String, Object?> toJson() {
-    return {'path': relativePath, 'reason': reason.code};
-  }
 }
 
 TargetPackageFiles discoverTargetPackageFiles(io.Directory root) {

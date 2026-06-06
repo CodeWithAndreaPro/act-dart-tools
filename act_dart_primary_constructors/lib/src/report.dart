@@ -194,8 +194,10 @@ class MigrationReport {
       skippedDeclarations: _sortedSkippedDeclarationReports(
         migration.skippedDeclarations,
       ),
-      skippedFiles: _sortedPathReports(discovery.skippedFileReports),
-      skippedDirectories: _sortedPathReports(discovery.skippedDirectoryReports),
+      skippedFiles: _skippedDartFileReports(discovery.skippedFiles),
+      skippedDirectories: _skippedDirectoryReports(
+        discovery.skippedDirectories,
+      ),
       transformCounts: _orderedTransformCounts(migration.transformCounts),
       skipReasonCounts: _combinedSkipReasonCounts(
         discovery: discovery,
@@ -317,19 +319,41 @@ List<String> _sortedStrings(List<String> values) {
   return [...values]..sort();
 }
 
-List<Map<String, Object?>> _sortedPathReports(
-  List<Map<String, Object?>> reports,
+List<Map<String, Object?>> _skippedDartFileReports(
+  List<SkippedDartFile> files,
 ) {
-  return [...reports]..sort((a, b) {
-    final pathComparison = _reportString(
-      a,
-      'path',
-    ).compareTo(_reportString(b, 'path'));
-    if (pathComparison != 0) {
-      return pathComparison;
-    }
-    return _reportString(a, 'reason').compareTo(_reportString(b, 'reason'));
-  });
+  return _skippedPathReports(
+    files.map((file) => (path: file.relativePath, reason: file.reason)),
+  );
+}
+
+List<Map<String, Object?>> _skippedDirectoryReports(
+  List<SkippedDirectory> directories,
+) {
+  return _skippedPathReports(
+    directories.map(
+      (directory) => (path: directory.relativePath, reason: directory.reason),
+    ),
+  );
+}
+
+typedef _SkippedPathFact = ({String path, FileSkipReason reason});
+
+List<Map<String, Object?>> _skippedPathReports(
+  Iterable<_SkippedPathFact> facts,
+) {
+  final sortedFacts = facts.toList()
+    ..sort((a, b) {
+      final pathComparison = a.path.compareTo(b.path);
+      if (pathComparison != 0) {
+        return pathComparison;
+      }
+      return a.reason.code.compareTo(b.reason.code);
+    });
+  return [
+    for (final fact in sortedFacts)
+      {'path': fact.path, 'reason': fact.reason.code},
+  ];
 }
 
 List<MigratedDeclarationReport> _sortedMigratedDeclarationReports(
@@ -487,13 +511,6 @@ void _addCount(Map<String, int> counts, String key, int count) {
     return;
   }
   counts[key] = (counts[key] ?? 0) + count;
-}
-
-String _reportString(Map<String, Object?> report, String key) {
-  return switch (report[key]) {
-    final String value => value,
-    _ => '',
-  };
 }
 
 const _knownTransformOrder = [primaryConstructorTransform];

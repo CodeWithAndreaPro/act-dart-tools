@@ -73,7 +73,16 @@ void main() {
               reason: FileSkipReason.generatedFile,
             ),
           ],
-          skippedDirectories: [],
+          skippedDirectories: [
+            SkippedDirectory(
+              relativePath: 'worktrees/checkout',
+              reason: FileSkipReason.nestedRepository,
+            ),
+            SkippedDirectory(
+              relativePath: 'build',
+              reason: FileSkipReason.excludedDirectory,
+            ),
+          ],
         ),
         migration: const MigrationRunResult(
           changedFiles: ['lib/z.dart', 'lib/a.dart'],
@@ -124,6 +133,10 @@ void main() {
       expect(report.skippedFiles, [
         {'path': 'lib/a.g.dart', 'reason': 'generatedFile'},
         {'path': 'lib/z.g.dart', 'reason': 'generatedFile'},
+      ]);
+      expect(report.skippedDirectories, [
+        {'path': 'build', 'reason': 'excludedDirectory'},
+        {'path': 'worktrees/checkout', 'reason': 'nestedRepository'},
       ]);
       expect(json['migratedDeclarations'], [
         {

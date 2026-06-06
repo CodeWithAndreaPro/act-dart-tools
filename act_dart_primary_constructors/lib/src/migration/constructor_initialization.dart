@@ -1,5 +1,84 @@
 part of '../migration.dart';
 
+final class _ConstructorRealizationPlanner {
+  const _ConstructorRealizationPlanner({
+    required this.source,
+    required this.declaration,
+    required this.constructor,
+  });
+
+  final String source;
+  final ClassDeclaration declaration;
+  final ConstructorDeclaration constructor;
+
+  _ConstructorRealizationDecision decide() {
+    final initializationDecision = _ConstructorInitializationPlanner(
+      source: source,
+      declaration: declaration,
+      constructor: constructor,
+    ).decide();
+    final _ConstructorInitializationPlan initializationPlan;
+    switch (initializationDecision) {
+      case _PlannedConstructorInitialization(:final plan):
+        initializationPlan = plan;
+      case _SkippedConstructorInitialization(:final reason):
+        return _SkippedConstructorRealization(reason);
+    }
+
+    final fieldToParameterDecision =
+        _FieldToParameterPlanner(
+          source: source,
+          declaration: declaration,
+          privateFieldInitializersByName:
+              initializationPlan.privateFieldInitializersByName,
+        ).decideConstructorParameters(
+          parameters: constructor.parameters,
+          fieldInitializers: initializationPlan.fieldInitializers,
+        );
+    final List<_ParameterMigrationPlan> parameterPlans;
+    switch (fieldToParameterDecision) {
+      case _PlannedFieldToParameter(
+        parameterPlans: final plannedParameterPlans,
+      ):
+        parameterPlans = plannedParameterPlans;
+      case _SkippedFieldToParameter(:final reason):
+        return _SkippedConstructorRealization(reason);
+    }
+
+    return _PlannedConstructorRealization(
+      _ConstructorRealizationPlan(
+        parameterPlans: parameterPlans,
+        fieldInitializerEdits: [
+          for (final fieldInitializer in initializationPlan.fieldInitializers)
+            SourceEdit.insert(
+              fieldInitializer.variable.end,
+              ' = ${_sourceFor(source, fieldInitializer.expression)}',
+            ),
+        ],
+        primaryBodySource: initializationPlan.primaryBodySource,
+      ),
+    );
+  }
+}
+
+sealed class _ConstructorRealizationDecision {
+  const _ConstructorRealizationDecision();
+}
+
+final class _PlannedConstructorRealization
+    extends _ConstructorRealizationDecision {
+  const _PlannedConstructorRealization(this.plan);
+
+  final _ConstructorRealizationPlan plan;
+}
+
+final class _SkippedConstructorRealization
+    extends _ConstructorRealizationDecision {
+  const _SkippedConstructorRealization(this.reason);
+
+  final DeclarationSkipReason reason;
+}
+
 final class _ConstructorInitializationPlanner {
   const _ConstructorInitializationPlanner({
     required this.source,

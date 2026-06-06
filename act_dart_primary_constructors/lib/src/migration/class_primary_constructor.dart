@@ -63,20 +63,18 @@ class _ClassPrimaryConstructorPlanner {
         DeclarationSkipReason.redirectingConstructor,
       );
     }
-    final initializationDecision = _ConstructorInitializationPlanner(
+    final realizationDecision = _ConstructorRealizationPlanner(
       source: source,
       declaration: declaration,
       constructor: constructor,
     ).decide();
-    final _ConstructorInitializationPlan initializationPlan;
-    switch (initializationDecision) {
-      case _PlannedConstructorInitialization(:final plan):
-        initializationPlan = plan;
-      case _SkippedConstructorInitialization(:final reason):
+    final _ConstructorRealizationPlan realizationPlan;
+    switch (realizationDecision) {
+      case _PlannedConstructorRealization(:final plan):
+        realizationPlan = plan;
+      case _SkippedConstructorRealization(:final reason):
         return _SkippedClassPrimaryConstructor(reason);
     }
-    final privateFieldInitializersByName =
-        initializationPlan.privateFieldInitializersByName;
 
     if (generativeConstructors.any(
       (constructor) =>
@@ -96,48 +94,27 @@ class _ClassPrimaryConstructorPlanner {
       );
     }
 
-    final fieldToParameterDecision =
-        _FieldToParameterPlanner(
-          source: source,
-          declaration: declaration,
-          privateFieldInitializersByName: privateFieldInitializersByName,
-        ).decideConstructorParameters(
-          parameters: constructor.parameters,
-          fieldInitializers: initializationPlan.fieldInitializers,
-        );
-    final List<_ParameterMigrationPlan> parameterPlans;
-    switch (fieldToParameterDecision) {
-      case _PlannedFieldToParameter(
-        parameterPlans: final plannedParameterPlans,
-      ):
-        parameterPlans = plannedParameterPlans;
-      case _SkippedFieldToParameter(:final reason):
-        return _SkippedClassPrimaryConstructor(reason);
-    }
-
     return _MigratedClassPrimaryConstructor(
       _buildMigrationPlan(
         constructor: constructor,
-        initializationPlan: initializationPlan,
-        parameterPlans: parameterPlans,
+        realizationPlan: realizationPlan,
       ),
     );
   }
 
   _ClassMigrationPlan _buildMigrationPlan({
     required ConstructorDeclaration constructor,
-    required _ConstructorInitializationPlan initializationPlan,
-    required List<_ParameterMigrationPlan> parameterPlans,
+    required _ConstructorRealizationPlan realizationPlan,
   }) {
     final constructorParameters = constructor.parameters.parameters;
     final parameterEdits = <SourceEdit>[];
-    final primaryBodyRequired = initializationPlan.primaryBodyRequired;
+    final primaryBodyRequired = realizationPlan.primaryBodyRequired;
     final removableMembers = <ClassMember>{
       if (!primaryBodyRequired) constructor,
     };
     final parametersRange = _rangeFor(constructor.parameters);
 
-    for (final parameterPlan in parameterPlans) {
+    for (final parameterPlan in realizationPlan.parameterPlans) {
       parameterEdits.addAll(parameterPlan.edits);
       removableMembers.addAll(parameterPlan.removableFields);
     }
@@ -151,11 +128,7 @@ class _ClassPrimaryConstructorPlanner {
         SourceEdit.insert(declaration.classKeyword.end, ' const'),
       if (primaryParameters != null)
         SourceEdit.insert(declaration.namePart.end, primaryParameters),
-      for (final fieldInitializer in initializationPlan.fieldInitializers)
-        SourceEdit.insert(
-          fieldInitializer.variable.end,
-          ' = ${_sourceFor(source, fieldInitializer.expression)}',
-        ),
+      ...realizationPlan.fieldInitializerEdits,
     ];
 
     if (!primaryBodyRequired &&
@@ -169,7 +142,7 @@ class _ClassPrimaryConstructorPlanner {
       if (primaryBodyRequired) {
         final range = _memberRemovalRange(source, constructor);
         edits.add(
-          SourceEdit.replace(range, initializationPlan.primaryBodySource!),
+          SourceEdit.replace(range, realizationPlan.primaryBodySource!),
         );
       }
     }

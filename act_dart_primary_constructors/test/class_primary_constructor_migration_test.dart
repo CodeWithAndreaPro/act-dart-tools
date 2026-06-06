@@ -299,6 +299,37 @@ class Account({required final String _id, required final int score}) {
       },
     );
 
+    test(
+      'migrates private named fields with retained assert initializers',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/account.dart', '''
+class Account {
+  final String _id;
+  final int score;
+
+  Account({required String id, required this.score})
+      : _id = id,
+        assert(score >= 0);
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/account.dart',
+          declarationName: 'Account',
+        );
+        expect(await formattedFile(root, 'lib/account.dart'), '''
+class Account({required final String _id, required final int score}) {
+  this : assert(score >= 0);
+}
+''');
+      },
+    );
+
     test('preserves simple super parameters unchanged', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

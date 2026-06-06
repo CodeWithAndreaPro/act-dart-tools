@@ -44,6 +44,20 @@ class _ConstructorInitializationPlan {
   bool get primaryBodyRequired => primaryBodySource != null;
 }
 
+class _ConstructorRealizationPlan {
+  const _ConstructorRealizationPlan({
+    required this.parameterPlans,
+    required this.fieldInitializerEdits,
+    required this.primaryBodySource,
+  });
+
+  final List<_ParameterMigrationPlan> parameterPlans;
+  final List<SourceEdit> fieldInitializerEdits;
+  final String? primaryBodySource;
+
+  bool get primaryBodyRequired => primaryBodySource != null;
+}
+
 class _FieldInitializerMigration {
   const _FieldInitializerMigration({
     required this.fieldName,

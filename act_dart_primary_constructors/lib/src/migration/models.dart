@@ -257,22 +257,6 @@ class _FieldCommentMigration {
   final bool isAmbiguous;
 }
 
-class _EligibleField {
-  const _EligibleField({
-    required this.declaration,
-    required this.variable,
-    required this.typeSource,
-    required this.declaringKeyword,
-    this.leadingCommentSource,
-  });
-
-  final FieldDeclaration declaration;
-  final VariableDeclaration variable;
-  final String typeSource;
-  final String declaringKeyword;
-  final String? leadingCommentSource;
-}
-
 class _PlannedFileMigration {
   const _PlannedFileMigration({
     required this.targetFile,

@@ -167,6 +167,25 @@ class InterleavedFieldComment {
       });
     }
 
+    test('skips ambiguous private field comments precisely', () async {
+      const originalSource = '''
+class PrivateFieldComment {
+  final String _id; // Private identifier.
+
+  PrivateFieldComment(this._id);
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/private_comment.dart',
+        originalSource: originalSource,
+        declarationName: 'PrivateFieldComment',
+        reason: 'fieldComment',
+        message:
+            'Ambiguous field comments are not moved to declaring parameters.',
+      );
+    });
+
     for (final scenario in [
       (
         name: 'named constructor',

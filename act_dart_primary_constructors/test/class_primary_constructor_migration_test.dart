@@ -213,6 +213,37 @@ class _Secret(final String _value);
 ''');
     });
 
+    test('migrates mixed field-to-parameter declarations', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/profile.dart', '''
+class Profile {
+  /// Public identifier.
+  final String id;
+  final String _token;
+  int visits;
+
+  Profile(this.id, this._token, this.visits);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/profile.dart',
+        declarationName: 'Profile',
+      );
+      expect(await formattedFile(root, 'lib/profile.dart'), '''
+class Profile(
+  /// Public identifier.
+  final String id,
+  final String _token,
+  var int visits,
+);
+''');
+    });
+
     test('preserves public names for private named fields', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

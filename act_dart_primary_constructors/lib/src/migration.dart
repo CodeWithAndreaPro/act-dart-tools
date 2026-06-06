@@ -10,6 +10,7 @@ import 'source_edit.dart';
 
 part 'migration/class_primary_constructor.dart';
 part 'migration/constructor_initialization.dart';
+part 'migration/declaration_planner.dart';
 part 'migration/engine.dart';
 part 'migration/field_comments.dart';
 part 'migration/field_to_parameter.dart';

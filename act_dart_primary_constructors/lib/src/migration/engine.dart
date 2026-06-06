@@ -19,7 +19,7 @@ class _MigrationEngine {
 
     for (final targetFile in files) {
       final source = targetFile.file.readAsStringSync();
-      final plan = _FileMigrationPlanner(
+      final plan = _TargetFileDeclarationPlanner(
         targetFile: targetFile,
         source: source,
       ).plan();
@@ -55,62 +55,6 @@ class _MigrationEngine {
     for (final plan in plannedFiles) {
       plan.targetFile.file.writeAsStringSync(plan.transformedSource);
     }
-  }
-}
-
-class _FileMigrationPlanner {
-  const _FileMigrationPlanner({required this.targetFile, required this.source});
-
-  final TargetDartFile targetFile;
-  final String source;
-
-  _PlannedFileMigration? plan() {
-    final unit = _parseSource(source, path: targetFile.file.path, input: true);
-    final edits = <SourceEdit>[];
-    final migratedDeclarations = <_MigratedDeclaration>[];
-    final skippedDeclarations = <_SkippedDeclaration>[];
-
-    for (final declaration
-        in unit.unit.declarations.whereType<ClassDeclaration>()) {
-      final classPlanner = _ClassPrimaryConstructorPlanner(
-        source: source,
-        targetFile: targetFile,
-        declaration: declaration,
-      );
-      switch (classPlanner.decide()) {
-        case _MigratedClassPrimaryConstructor(:final plan):
-          edits.addAll(plan.edits);
-          migratedDeclarations.add(plan.migratedDeclaration);
-        case _SkippedClassPrimaryConstructor(:final reason):
-          skippedDeclarations.add(
-            _SkippedDeclaration(
-              path: targetFile.relativePath,
-              declarationKind: 'class',
-              declarationName: declaration.namePart.typeName.lexeme,
-              transform: primaryConstructorTransform,
-              offset: declaration.offset,
-              reason: reason,
-            ),
-          );
-        case _NoOpClassPrimaryConstructor():
-          continue;
-      }
-    }
-
-    if (edits.isEmpty && skippedDeclarations.isEmpty) {
-      return null;
-    }
-
-    final transformedSource = edits.isEmpty
-        ? source
-        : applySourceEdits(source, edits);
-    return _PlannedFileMigration(
-      targetFile: targetFile,
-      transformedSource: transformedSource,
-      migratedDeclarations: migratedDeclarations,
-      skippedDeclarations: skippedDeclarations,
-      hasEdits: edits.isNotEmpty,
-    );
   }
 }
 

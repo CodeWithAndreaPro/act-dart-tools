@@ -104,6 +104,102 @@ class Already(final String id);
 ''');
     });
 
+    test(
+      'reports migrated and skipped classes from one file in source order',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
+class FirstSkipped {
+  final String id;
+
+  FirstSkipped(String id);
+}
+
+class FirstMigrated {
+  final String id;
+
+  FirstMigrated(this.id);
+}
+
+class SecondSkipped {
+  final String id;
+
+  SecondSkipped(String id);
+}
+
+class SecondMigrated {
+  final String id;
+
+  SecondMigrated(this.id);
+}
+''';
+        writeFile(root, 'lib/source.dart', originalSource);
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], ['lib/source.dart']);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'FirstMigrated',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class FirstMigrated'),
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'SecondMigrated',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class SecondMigrated'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'FirstSkipped',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class FirstSkipped'),
+            'reason': 'unsupportedParameterShape',
+            'message': 'This constructor parameter shape is not supported.',
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'SecondSkipped',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class SecondSkipped'),
+            'reason': 'unsupportedParameterShape',
+            'message': 'This constructor parameter shape is not supported.',
+          },
+        ]);
+        expect(decoded['transformCounts'], {'primaryConstructor': 2});
+        expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 2});
+        expect(await formattedFile(root, 'lib/source.dart'), '''
+class FirstSkipped {
+  final String id;
+
+  FirstSkipped(String id);
+}
+
+class FirstMigrated(final String id);
+
+class SecondSkipped {
+  final String id;
+
+  SecondSkipped(String id);
+}
+
+class SecondMigrated(final String id);
+''');
+      },
+    );
+
     for (final scenario in [
       (
         name: 'trailing field comment',

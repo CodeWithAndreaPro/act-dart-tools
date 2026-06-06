@@ -264,6 +264,18 @@ class _PlannedFileMigration {
   final bool hasEdits;
 }
 
+class _DeclarationMigrationPlan {
+  const _DeclarationMigrationPlan({
+    this.edits = const [],
+    this.migratedDeclaration,
+    this.skippedDeclaration,
+  });
+
+  final List<SourceEdit> edits;
+  final _MigratedDeclaration? migratedDeclaration;
+  final _SkippedDeclaration? skippedDeclaration;
+}
+
 class _SourceRange {
   const _SourceRange(this.offset, this.length);
 

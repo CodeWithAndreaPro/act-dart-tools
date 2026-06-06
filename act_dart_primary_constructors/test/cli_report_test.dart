@@ -165,8 +165,11 @@ void main() {
       expect(stdout.toString(), contains('Tool version: $packageVersion'));
       expect(stdout.toString(), contains('Root: ${normalizedPath(root)}'));
       expect(stdout.toString(), contains('Mode: safe'));
+      expect(stdout.toString(), contains('Dry run: false'));
+      expect(stdout.toString(), contains('Formatted: false'));
       expect(stdout.toString(), contains('Changed files: 0'));
       expect(stdout.toString(), contains('Migrated declarations: 0'));
+      expect(stdout.toString(), contains('Skipped declarations: 0'));
       expect(stdout.toString(), contains('Skipped files: 0'));
       expect(stdout.toString(), contains('Skipped directories: 0'));
     });
@@ -203,6 +206,65 @@ void main() {
         expect(output, contains('- packages/nested (nestedPackage)'));
       },
     );
+
+    test('include-skipped does not change JSON-only stdout', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/model.g.dart', 'void generated() {}');
+
+      final result = await runCli([
+        'migrate',
+        '--root',
+        root.path,
+        '--json',
+        '--include-skipped',
+      ]);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['ok'], isTrue);
+      expect(decoded['skippedFiles'], [
+        {'path': 'lib/model.g.dart', 'reason': 'generatedFile'},
+      ]);
+      expect(result.stdout, isNot(contains('Skipped file details:')));
+    });
+  });
+
+  group('failure reports', () {
+    test('invalid argument returns argument-error JSON', () async {
+      final result = await runCli(['migrate', '--unsupported', '--json']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['schemaVersion'], schemaVersion);
+      expect(decoded['toolVersion'], packageVersion);
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message': 'Could not find an option named "--unsupported".',
+      });
+    });
+
+    test('input parse failure returns parse-failure JSON', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/broken.dart', 'class {');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitParseFailure);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['schemaVersion'], schemaVersion);
+      expect(decoded['toolVersion'], packageVersion);
+      expect(decoded['error'], isA<Map<String, Object?>>());
+      final error = decoded['error'] as Map<String, Object?>;
+      expect(error['code'], 'parseFailure');
+      expect(error['message'], contains('Failed to parse'));
+    });
   });
 
   group('invalid root', () {

@@ -110,46 +110,22 @@ Future<int> _runMigrate(
     );
   }
 
-  final report = MigrationReport(
+  final report = MigrationReport.fromRun(
     root: rootValidation,
     mode: results.option('mode') ?? 'safe',
     dryRun: results.flag('dry-run'),
-    changedFiles: migration.changedFiles,
-    migratedDeclarations: migration.migratedDeclarations,
-    skippedDeclarations: migration.skippedDeclarations,
-    skippedFiles: discovery.skippedFileReports,
-    skippedDirectories: discovery.skippedDirectoryReports,
-    transformCounts: migration.transformCounts,
-    skipReasonCounts: _combineSkipReasonCounts(
-      discovery.skipReasonCounts,
-      migration.skipReasonCounts,
-    ),
+    discovery: discovery,
+    migration: migration,
   );
 
   if (results.flag('json')) {
     stdout.writeln(report.toJsonString());
   } else {
-    _writeTextReport(
-      report,
-      stdout,
-      includeSkipped: results.flag('include-skipped'),
+    stdout.write(
+      report.toTextString(includeSkipped: results.flag('include-skipped')),
     );
   }
   return exitSuccess;
-}
-
-Map<String, int> _combineSkipReasonCounts(
-  Map<String, int> fileSkipCounts,
-  Map<String, int> declarationSkipCounts,
-) {
-  final combined = <String, int>{};
-  for (final entry in fileSkipCounts.entries) {
-    combined[entry.key] = entry.value;
-  }
-  for (final entry in declarationSkipCounts.entries) {
-    combined[entry.key] = (combined[entry.key] ?? 0) + entry.value;
-  }
-  return combined;
 }
 
 String? _validateRoot(String? root) {
@@ -198,60 +174,4 @@ int _writeError(
     stderr.writeln(report.message);
   }
   return exitCode;
-}
-
-void _writeTextReport(
-  MigrationReport report,
-  StringSink stdout, {
-  required bool includeSkipped,
-}) {
-  stdout
-    ..writeln('Dart primary constructors migration')
-    ..writeln('Tool version: $packageVersion')
-    ..writeln('Root: ${report.root}')
-    ..writeln('Mode: ${report.mode}')
-    ..writeln('Dry run: ${report.dryRun}')
-    ..writeln('Formatted: false')
-    ..writeln('Changed files: ${report.changedFiles.length}')
-    ..writeln('Migrated declarations: ${report.migratedDeclarations.length}')
-    ..writeln('Skipped declarations: ${report.skippedDeclarations.length}')
-    ..writeln('Skipped files: ${report.skippedFiles.length}')
-    ..writeln('Skipped directories: ${report.skippedDirectories.length}');
-
-  if (includeSkipped && report.skippedFiles.isNotEmpty) {
-    stdout.writeln('Skipped file details:');
-    for (final skippedFile in report.skippedFiles) {
-      if (skippedFile case {
-        'path': final String path,
-        'reason': final String reason,
-      }) {
-        stdout.writeln('- $path ($reason)');
-      }
-    }
-  }
-
-  if (includeSkipped && report.skippedDirectories.isNotEmpty) {
-    stdout.writeln('Skipped directory details:');
-    for (final skippedDirectory in report.skippedDirectories) {
-      if (skippedDirectory case {
-        'path': final String path,
-        'reason': final String reason,
-      }) {
-        stdout.writeln('- $path ($reason)');
-      }
-    }
-  }
-
-  if (includeSkipped && report.skippedDeclarations.isNotEmpty) {
-    stdout.writeln('Skipped declaration details:');
-    for (final skippedDeclaration in report.skippedDeclarations) {
-      if (skippedDeclaration case {
-        'path': final String path,
-        'declarationName': final String declarationName,
-        'reason': final String reason,
-      }) {
-        stdout.writeln('- $path $declarationName ($reason)');
-      }
-    }
-  }
 }

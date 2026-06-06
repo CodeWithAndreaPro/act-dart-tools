@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dart_primary_constructors/dart_primary_constructors.dart';
-import 'package:dart_primary_constructors/src/discovery.dart';
+import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
+import 'package:act_dart_primary_constructors/src/discovery.dart';
 import 'package:test/test.dart';
 
 Future<Directory> createPackageRoot() async {
-  final root = await Directory.systemTemp.createTemp('dart_primary_package_');
+  final root = await Directory.systemTemp.createTemp(
+    'act_dart_primary_package_',
+  );
   File('${root.path}${Platform.pathSeparator}pubspec.yaml').writeAsStringSync(
     '''
 name: target_package
@@ -32,7 +34,7 @@ String systemPath(String relativePath) {
 Future<ProcessResult> runCli(List<String> arguments) {
   return Process.run(Platform.resolvedExecutable, [
     'run',
-    'dart_primary_constructors',
+    'act_dart_primary_constructors',
     ...arguments,
   ]);
 }

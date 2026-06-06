@@ -1,4 +1,4 @@
-name: dart_primary_constructors
+name: act_dart_primary_constructors
 description: Bundled ACT tool for Dart primary-constructor migrations.
 version: 0.1.0
 
@@ -10,7 +10,7 @@ dependencies:
   args: ^2.6.0
 
 executables:
-  dart_primary_constructors:
+  act_dart_primary_constructors:
 
 dev_dependencies:
   lints: ^6.0.0

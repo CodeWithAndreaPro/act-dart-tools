@@ -1,4 +1,4 @@
-import 'package:dart_primary_constructors/src/source_edit.dart';
+import 'package:act_dart_primary_constructors/src/source_edit.dart';
 import 'package:test/test.dart';
 
 void main() {

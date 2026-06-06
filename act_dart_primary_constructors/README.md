@@ -1,4 +1,4 @@
-# dart_primary_constructors
+# act_dart_primary_constructors
 
 Bundled ACT tooling for Dart primary-constructor migrations.
 
@@ -7,12 +7,16 @@ ordinary constructor boilerplate to Dart experimental primary-constructor syntax
 It is intentionally conservative: when a declaration cannot be migrated safely,
 the tool leaves the source unchanged and reports a precise skip reason.
 
+This package is the active development source. Maintainers periodically sync it
+into the ACT primary-constructor skill bundle for distribution, but sync
+mechanics are tracked separately from CLI feature work.
+
 ## Usage
 
 ```bash
-dart run dart_primary_constructors --version
-dart run dart_primary_constructors migrate --root <target-package> --json
-dart run dart_primary_constructors migrate --root <target-package> --dry-run
+dart run act_dart_primary_constructors --version
+dart run act_dart_primary_constructors migrate --root <target-package> --json
+dart run act_dart_primary_constructors migrate --root <target-package> --dry-run
 ```
 
 ## How it works
@@ -20,7 +24,7 @@ dart run dart_primary_constructors migrate --root <target-package> --dry-run
 The high-level flow is:
 
 ```text
-bin/dart_primary_constructors.dart
+bin/act_dart_primary_constructors.dart
   -> runDartPrimaryConstructors()
   -> discoverTargetPackageFiles()
   -> migrateTargetPackageFiles()
@@ -33,10 +37,10 @@ AST-backed source edits, validates transformed source, writes files unless
 
 ## Core implementation blocks
 
-`bin/dart_primary_constructors.dart` is the executable entry point. It delegates
+`bin/act_dart_primary_constructors.dart` is the executable entry point. It delegates
 to `runDartPrimaryConstructors()` and sets the process exit code.
 
-`lib/dart_primary_constructors.dart` defines the public package export surface
+`lib/act_dart_primary_constructors.dart` defines the public package export surface
 for the CLI, report model, version, and exit codes.
 
 `lib/src/cli.dart` owns argument parsing and orchestration. It handles

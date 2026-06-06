@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:dart_primary_constructors/dart_primary_constructors.dart';
+import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';

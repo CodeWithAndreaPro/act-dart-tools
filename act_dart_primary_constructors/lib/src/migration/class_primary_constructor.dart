@@ -164,53 +164,36 @@ class _ClassPrimaryConstructorPlanner {
         : applySourceEdits(parametersSource, parameterEdits);
     final edits = <SourceEdit>[
       if (constructor.constKeyword != null)
-        SourceEdit(
-          offset: declaration.classKeyword.end,
-          length: 0,
-          replacement: ' const',
-        ),
+        SourceEdit.insert(declaration.classKeyword.end, ' const'),
       if (primaryParameters != null)
-        SourceEdit(
-          offset: declaration.namePart.end,
-          length: 0,
-          replacement: primaryParameters,
-        ),
+        SourceEdit.insert(declaration.namePart.end, primaryParameters),
       for (final fieldInitializer in initializationPlan.fieldInitializers)
-        SourceEdit(
-          offset: fieldInitializer.variable.end,
-          length: 0,
-          replacement: ' = ${_sourceFor(source, fieldInitializer.expression)}',
+        SourceEdit.insert(
+          fieldInitializer.variable.end,
+          ' = ${_sourceFor(source, fieldInitializer.expression)}',
         ),
     ];
 
     if (!primaryBodyRequired &&
         declaration.body.members.length == removableMembers.length) {
       edits.add(
-        SourceEdit(
-          offset: declaration.body.offset,
-          length: declaration.body.length,
-          replacement: ';',
+        SourceEdit.replace(
+          SourceRange(
+            offset: declaration.body.offset,
+            length: declaration.body.length,
+          ),
+          ';',
         ),
       );
     } else {
       for (final member in removableMembers) {
         final range = _memberRemovalRange(source, member);
-        edits.add(
-          SourceEdit(
-            offset: range.offset,
-            length: range.length,
-            replacement: '',
-          ),
-        );
+        edits.add(SourceEdit.delete(range));
       }
       if (primaryBodyRequired) {
         final range = _memberRemovalRange(source, constructor);
         edits.add(
-          SourceEdit(
-            offset: range.offset,
-            length: range.length,
-            replacement: initializationPlan.primaryBodySource!,
-          ),
+          SourceEdit.replace(range, initializationPlan.primaryBodySource!),
         );
       }
     }

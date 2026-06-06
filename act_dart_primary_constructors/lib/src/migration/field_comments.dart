@@ -202,14 +202,14 @@ String _commentSource(String source, List<Token> comments) {
   return source.substring(comments.first.offset, comments.last.end);
 }
 
-_SourceRange _commentRange(List<Token> comments) {
-  return _SourceRange(
-    comments.first.offset,
-    comments.last.end - comments.first.offset,
+SourceRange _commentRange(List<Token> comments) {
+  return SourceRange.fromStartEnd(
+    start: comments.first.offset,
+    end: comments.last.end,
   );
 }
 
-_SourceRange _memberRemovalRange(String source, ClassMember member) {
+SourceRange _memberRemovalRange(String source, ClassMember member) {
   final leadingCommentRange = member is FieldDeclaration
       ? _directFieldLeadingCommentRange(source, member)
       : null;
@@ -233,10 +233,10 @@ _SourceRange _memberRemovalRange(String source, ClassMember member) {
     }
     end = lineEnd == source.length ? lineEnd : lineEnd + 1;
   }
-  return _SourceRange(start, end - start);
+  return SourceRange.fromStartEnd(start: start, end: end);
 }
 
-_SourceRange? _directFieldLeadingCommentRange(
+SourceRange? _directFieldLeadingCommentRange(
   String source,
   FieldDeclaration member,
 ) {

@@ -275,10 +275,3 @@ class _DeclarationMigrationPlan {
   final _MigratedDeclaration? migratedDeclaration;
   final _SkippedDeclaration? skippedDeclaration;
 }
-
-class _SourceRange {
-  const _SourceRange(this.offset, this.length);
-
-  final int offset;
-  final int length;
-}

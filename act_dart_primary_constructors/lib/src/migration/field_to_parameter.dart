@@ -143,14 +143,12 @@ final class _FieldToParameterPlanner {
     return _PlannedConstructorParameter(
       _ParameterMigrationPlan(
         edits: [
-          SourceEdit(
-            offset: replacementOffset - parametersOffset,
-            length: replacementEnd - replacementOffset,
-            replacement: _declaringParameterSource(
-              field,
-              fieldName,
-              prefix: prefix,
+          SourceEdit.replace(
+            SourceRange.fromStartEnd(
+              start: replacementOffset - parametersOffset,
+              end: replacementEnd - parametersOffset,
             ),
+            _declaringParameterSource(field, fieldName, prefix: prefix),
           ),
         ],
         removableFields: [field.declaration],

@@ -77,27 +77,24 @@ class _FileMigrationPlanner {
         targetFile: targetFile,
         declaration: declaration,
       );
-      final skipReason = classPlanner.skipReason();
-      if (skipReason != null) {
-        skippedDeclarations.add(
-          _SkippedDeclaration(
-            path: targetFile.relativePath,
-            declarationKind: 'class',
-            declarationName: declaration.namePart.typeName.lexeme,
-            transform: primaryConstructorTransform,
-            offset: declaration.offset,
-            reason: skipReason,
-          ),
-        );
-        continue;
+      switch (classPlanner.decide()) {
+        case _MigratedClassPrimaryConstructor(:final plan):
+          edits.addAll(plan.edits);
+          migratedDeclarations.add(plan.migratedDeclaration);
+        case _SkippedClassPrimaryConstructor(:final reason):
+          skippedDeclarations.add(
+            _SkippedDeclaration(
+              path: targetFile.relativePath,
+              declarationKind: 'class',
+              declarationName: declaration.namePart.typeName.lexeme,
+              transform: primaryConstructorTransform,
+              offset: declaration.offset,
+              reason: reason,
+            ),
+          );
+        case _NoOpClassPrimaryConstructor():
+          continue;
       }
-
-      final classPlan = classPlanner.plan();
-      if (classPlan == null) {
-        continue;
-      }
-      edits.addAll(classPlan.edits);
-      migratedDeclarations.add(classPlan.migratedDeclaration);
     }
 
     if (edits.isEmpty && skippedDeclarations.isEmpty) {

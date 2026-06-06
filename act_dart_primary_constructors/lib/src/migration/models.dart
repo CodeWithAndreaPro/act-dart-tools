@@ -204,14 +204,10 @@ class _ParameterMigrationPlan {
   const _ParameterMigrationPlan({
     this.edits = const [],
     this.removableFields = const [],
-    this.fieldNames = const [],
-    this.privateInitializerFieldNames = const [],
   });
 
   final List<SourceEdit> edits;
   final List<FieldDeclaration> removableFields;
-  final List<String> fieldNames;
-  final List<String> privateInitializerFieldNames;
 }
 
 class _ConstructorInitializerClassification {

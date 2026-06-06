@@ -35,6 +35,75 @@ class Already(final String id);
       },
     );
 
+    test('classifies migrate skip and no-op outcomes in one run', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class Migrated {
+  final String id;
+
+  Migrated(this.id);
+}
+
+class Skipped {
+  final String id;
+
+  Skipped(String id);
+}
+
+class Plain {
+  void ping() {}
+}
+
+class Already(final String id);
+''';
+      writeFile(root, 'lib/source.dart', originalSource);
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], ['lib/source.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/source.dart',
+          'declarationKind': 'class',
+          'declarationName': 'Migrated',
+          'transform': 'primaryConstructor',
+          'offset': originalSource.indexOf('class Migrated'),
+        },
+      ]);
+      expect(decoded['skippedDeclarations'], [
+        {
+          'path': 'lib/source.dart',
+          'declarationKind': 'class',
+          'declarationName': 'Skipped',
+          'transform': 'primaryConstructor',
+          'offset': originalSource.indexOf('class Skipped'),
+          'reason': 'unsupportedParameterShape',
+          'message': 'This constructor parameter shape is not supported.',
+        },
+      ]);
+      expect(decoded['transformCounts'], {'primaryConstructor': 1});
+      expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 1});
+      expect(await formattedFile(root, 'lib/source.dart'), '''
+class Migrated(final String id);
+
+class Skipped {
+  final String id;
+
+  Skipped(String id);
+}
+
+class Plain {
+  void ping() {}
+}
+
+class Already(final String id);
+''');
+    });
+
     for (final scenario in [
       (
         name: 'trailing field comment',

@@ -20,10 +20,6 @@ DeclarationSkipReason? _constructorBodySkipReason({
   return null;
 }
 
-bool _isSupportedConstructorBodyShape(FunctionBody body) {
-  return body is EmptyFunctionBody || body is BlockFunctionBody;
-}
-
 bool _bodyWritesInstanceField({
   required ClassDeclaration declaration,
   required BlockFunctionBody body,

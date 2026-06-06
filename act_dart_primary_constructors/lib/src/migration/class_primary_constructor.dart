@@ -11,54 +11,64 @@ class _ClassPrimaryConstructorPlanner {
   final TargetDartFile targetFile;
   final ClassDeclaration declaration;
 
-  DeclarationSkipReason? skipReason() {
+  _ClassPrimaryConstructorDecision decide() {
     if (declaration.namePart is PrimaryConstructorDeclaration) {
-      return null;
+      return const _NoOpClassPrimaryConstructor();
     }
 
     final constructors = declaration.body.members
         .whereType<ConstructorDeclaration>()
         .toList();
     if (constructors.isEmpty) {
-      return null;
+      return const _NoOpClassPrimaryConstructor();
     }
 
     final generativeConstructors = constructors
         .where((constructor) => constructor.factoryKeyword == null)
         .toList();
     if (generativeConstructors.isEmpty) {
-      return null;
+      return const _NoOpClassPrimaryConstructor();
     }
 
     final unnamedConstructors = generativeConstructors
         .where(_isUnnamedConstructor)
         .toList();
     if (unnamedConstructors.isEmpty) {
-      return null;
+      return const _NoOpClassPrimaryConstructor();
     }
     if (unnamedConstructors.length > 1) {
-      return DeclarationSkipReason.multipleConstructors;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.multipleConstructors,
+      );
     }
 
     final constructor = unnamedConstructors.single;
     if (constructor.externalKeyword != null) {
-      return DeclarationSkipReason.externalConstructor;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.externalConstructor,
+      );
     }
     if (constructor.metadata.isNotEmpty) {
-      return DeclarationSkipReason.constructorMetadata;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.constructorMetadata,
+      );
     }
     if (constructor.documentationComment != null) {
-      return DeclarationSkipReason.constructorComment;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.constructorComment,
+      );
     }
     if (constructor.redirectedConstructor != null) {
-      return DeclarationSkipReason.redirectingConstructor;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.redirectingConstructor,
+      );
     }
     final bodySkipReason = _constructorBodySkipReason(
       declaration: declaration,
       constructor: constructor,
     );
     if (bodySkipReason != null) {
-      return bodySkipReason;
+      return _SkippedClassPrimaryConstructor(bodySkipReason);
     }
     final initializerClassification = _classifyConstructorInitializers(
       source: source,
@@ -67,7 +77,7 @@ class _ClassPrimaryConstructorPlanner {
       parameterNames: _constructorParameterNames(constructor),
     );
     if (initializerClassification.skipReason case final skipReason?) {
-      return skipReason;
+      return _SkippedClassPrimaryConstructor(skipReason);
     }
     final initializerPlan = initializerClassification.plan!;
     final privateFieldInitializersByName =
@@ -79,73 +89,69 @@ class _ClassPrimaryConstructorPlanner {
           constructor != unnamedConstructors.single &&
           !_isUnnamedConstructor(constructor),
     )) {
-      return DeclarationSkipReason.namedConstructor;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.namedConstructor,
+      );
     }
     if (constructor.parameters.parameters.isEmpty &&
         constructor.constKeyword == null &&
         declaration.body.members.length != 1) {
-      return DeclarationSkipReason.emptyNonConstConstructorWithMembers;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.emptyNonConstConstructorWithMembers,
+      );
     }
 
     final usedFieldNames = <String>{};
     final usedPrivateInitializers = <String>{};
     final fieldsByName = _eligibleFieldsByName();
+    final parameterPlans = <_ParameterMigrationPlan>[];
+    final parametersOffset = constructor.parameters.offset;
     for (final parameter in constructor.parameters.parameters) {
-      final parameterSkipReason = _parameterSkipReason(
+      final parameterDecision = _decideConstructorParameter(
         parameter: parameter,
         fieldsByName: fieldsByName,
         privateFieldInitializersByName: privateFieldInitializersByName,
         usedFieldNames: usedFieldNames,
         usedPrivateInitializers: usedPrivateInitializers,
+        parametersOffset: parametersOffset,
       );
-      if (parameterSkipReason != null) {
-        return parameterSkipReason;
+      switch (parameterDecision) {
+        case _PlannedConstructorParameter(:final plan):
+          parameterPlans.add(plan);
+        case _SkippedConstructorParameter(:final reason):
+          return _SkippedClassPrimaryConstructor(reason);
       }
     }
 
     if (usedPrivateInitializers.length !=
         privateFieldInitializersByName.length) {
-      return DeclarationSkipReason.unsupportedInitializer;
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.unsupportedInitializer,
+      );
     }
     for (final fieldInitializer in initializerPlan.fieldInitializers) {
       if (usedFieldNames.contains(fieldInitializer.fieldName)) {
-        return DeclarationSkipReason.unsupportedInitializer;
+        return const _SkippedClassPrimaryConstructor(
+          DeclarationSkipReason.unsupportedInitializer,
+        );
       }
     }
 
-    return null;
+    return _MigratedClassPrimaryConstructor(
+      _buildMigrationPlan(
+        constructor: constructor,
+        initializerPlan: initializerPlan,
+        parameterPlans: parameterPlans,
+      ),
+    );
   }
 
-  _ClassMigrationPlan? plan() {
-    if (declaration.namePart is PrimaryConstructorDeclaration) {
-      return null;
-    }
-
-    final constructor = _eligibleUnnamedConstructor();
-    if (constructor == null) {
-      return null;
-    }
-
+  _ClassMigrationPlan _buildMigrationPlan({
+    required ConstructorDeclaration constructor,
+    required _ConstructorInitializerPlan initializerPlan,
+    required List<_ParameterMigrationPlan> parameterPlans,
+  }) {
     final constructorParameters = constructor.parameters.parameters;
-    if (constructorParameters.isEmpty &&
-        constructor.constKeyword == null &&
-        declaration.body.members.length != 1) {
-      return null;
-    }
-
-    final fieldsByName = _eligibleFieldsByName();
-    final initializerClassification = _classifyConstructorInitializers(
-      source: source,
-      declaration: declaration,
-      constructor: constructor,
-      parameterNames: _constructorParameterNames(constructor),
-    );
-    final initializerPlan = initializerClassification.plan;
-    if (initializerPlan == null) {
-      return null;
-    }
-    final privateFieldInitializersByName =
-        initializerPlan.privateFieldInitializersByName;
     final parameterEdits = <SourceEdit>[];
     final retainedInitializers = initializerPlan.retainedInitializers;
     final primaryBodyRequired =
@@ -154,41 +160,11 @@ class _ClassPrimaryConstructorPlanner {
     final removableMembers = <ClassMember>{
       if (!primaryBodyRequired) constructor,
     };
-    final fieldNames = <String>{};
-    final usedPrivateInitializers = <String>{};
-    final parametersOffset = constructor.parameters.offset;
     final parametersSource = _sourceFor(source, constructor.parameters);
 
-    for (final parameter in constructorParameters) {
-      final parameterPlan = _planConstructorParameter(
-        parameter: parameter,
-        fieldsByName: fieldsByName,
-        privateFieldInitializersByName: privateFieldInitializersByName,
-        parametersOffset: parametersOffset,
-      );
-      if (parameterPlan == null) {
-        return null;
-      }
-      for (final fieldName in parameterPlan.fieldNames) {
-        if (!fieldNames.add(fieldName)) {
-          return null;
-        }
-      }
+    for (final parameterPlan in parameterPlans) {
       parameterEdits.addAll(parameterPlan.edits);
       removableMembers.addAll(parameterPlan.removableFields);
-      usedPrivateInitializers.addAll(
-        parameterPlan.privateInitializerFieldNames,
-      );
-    }
-
-    if (usedPrivateInitializers.length !=
-        privateFieldInitializersByName.length) {
-      return null;
-    }
-    for (final fieldInitializer in initializerPlan.fieldInitializers) {
-      if (fieldNames.contains(fieldInitializer.fieldName)) {
-        return null;
-      }
     }
 
     final primaryParameters =
@@ -263,24 +239,25 @@ class _ClassPrimaryConstructorPlanner {
     );
   }
 
-  DeclarationSkipReason? _parameterSkipReason({
+  _ConstructorParameterDecision _decideConstructorParameter({
     required FormalParameter parameter,
     required Map<String, _EligibleField> fieldsByName,
     required Map<String, String> privateFieldInitializersByName,
     required Set<String> usedFieldNames,
     required Set<String> usedPrivateInitializers,
+    required int parametersOffset,
   }) {
     if (parameter.metadata.isNotEmpty) {
-      return DeclarationSkipReason.parameterMetadata;
+      return const _SkippedConstructorParameter(
+        DeclarationSkipReason.parameterMetadata,
+      );
     }
 
     if (parameter is FieldFormalParameter) {
-      if (parameter.documentationComment != null ||
-          parameter.constFinalOrVarKeyword != null ||
-          parameter.covariantKeyword != null ||
-          parameter.type != null ||
-          parameter.functionTypedSuffix != null) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+      if (!_isSimpleFieldFormalParameter(parameter)) {
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
       final fieldName = parameter.name.lexeme;
       final fieldSkipReason = _mappedFieldSkipReason(
@@ -289,20 +266,49 @@ class _ClassPrimaryConstructorPlanner {
         fieldName: fieldName,
       );
       if (fieldSkipReason != null) {
-        return fieldSkipReason;
+        return _SkippedConstructorParameter(fieldSkipReason);
       }
       if (!usedFieldNames.add(fieldName)) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
-      return null;
+      final field = fieldsByName[fieldName];
+      if (field == null) {
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
+      }
+      final shouldMoveComment = field.leadingCommentSource != null;
+      final replacementOffset = shouldMoveComment
+          ? parameter.offset
+          : parameter.thisKeyword.offset;
+      final prefix = shouldMoveComment
+          ? source.substring(parameter.offset, parameter.thisKeyword.offset)
+          : '';
+      return _PlannedConstructorParameter(
+        _ParameterMigrationPlan(
+          edits: [
+            SourceEdit(
+              offset: replacementOffset - parametersOffset,
+              length: parameter.name.end - replacementOffset,
+              replacement: _declaringParameterSource(
+                field,
+                fieldName,
+                prefix: prefix,
+              ),
+            ),
+          ],
+          removableFields: [field.declaration],
+        ),
+      );
     }
 
     if (parameter is RegularFormalParameter) {
-      if (parameter.documentationComment != null ||
-          parameter.constFinalOrVarKeyword != null ||
-          parameter.covariantKeyword != null ||
-          parameter.functionTypedSuffix != null) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+      if (!_isSimpleRegularFormalParameter(parameter)) {
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
       final parameterName = parameter.name?.lexeme;
       final parameterType = parameter.type;
@@ -310,12 +316,16 @@ class _ClassPrimaryConstructorPlanner {
           parameterName.startsWith('_') ||
           parameterType == null ||
           !parameter.isNamed) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
 
       final fieldName = '_$parameterName';
       if (privateFieldInitializersByName[fieldName] != parameterName) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
       final fieldSkipReason = _mappedFieldSkipReason(
         source: source,
@@ -323,48 +333,54 @@ class _ClassPrimaryConstructorPlanner {
         fieldName: fieldName,
       );
       if (fieldSkipReason != null) {
-        return fieldSkipReason;
+        return _SkippedConstructorParameter(fieldSkipReason);
       }
       final field = fieldsByName[fieldName];
       if (field == null ||
           _sourceFor(source, parameterType) != field.typeSource) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
       if (!usedFieldNames.add(fieldName)) {
-        return DeclarationSkipReason.unsupportedParameterShape;
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
       }
       usedPrivateInitializers.add(fieldName);
-      return null;
+      final shouldMoveComment = field.leadingCommentSource != null;
+      final replacementOffset = shouldMoveComment
+          ? parameter.offset
+          : parameterType.offset;
+      final prefix = shouldMoveComment
+          ? source.substring(parameter.offset, parameterType.offset)
+          : '';
+      return _PlannedConstructorParameter(
+        _ParameterMigrationPlan(
+          edits: [
+            SourceEdit(
+              offset: replacementOffset - parametersOffset,
+              length: parameter.name!.end - replacementOffset,
+              replacement: _declaringParameterSource(
+                field,
+                fieldName,
+                prefix: prefix,
+              ),
+            ),
+          ],
+          removableFields: [field.declaration],
+        ),
+      );
     }
 
     if (parameter is SuperFormalParameter &&
         _isSimpleSuperFormalParameter(parameter)) {
-      return null;
+      return const _PlannedConstructorParameter(_ParameterMigrationPlan());
     }
 
-    return DeclarationSkipReason.unsupportedParameterShape;
-  }
-
-  ConstructorDeclaration? _eligibleUnnamedConstructor() {
-    final constructors = declaration.body.members
-        .whereType<ConstructorDeclaration>();
-    ConstructorDeclaration? unnamed;
-    for (final constructor in constructors) {
-      if (constructor.factoryKeyword != null ||
-          constructor.externalKeyword != null) {
-        continue;
-      }
-      if (constructor.name != null || constructor.period != null) {
-        return null;
-      }
-      if (unnamed != null ||
-          constructor.redirectedConstructor != null ||
-          !_isSupportedConstructorBodyShape(constructor.body)) {
-        return null;
-      }
-      unnamed = constructor;
-    }
-    return unnamed;
+    return const _SkippedConstructorParameter(
+      DeclarationSkipReason.unsupportedParameterShape,
+    );
   }
 
   Map<String, _EligibleField> _eligibleFieldsByName() {
@@ -407,118 +423,6 @@ class _ClassPrimaryConstructorPlanner {
     return fields;
   }
 
-  _ParameterMigrationPlan? _planConstructorParameter({
-    required FormalParameter parameter,
-    required Map<String, _EligibleField> fieldsByName,
-    required Map<String, String> privateFieldInitializersByName,
-    required int parametersOffset,
-  }) {
-    if (parameter is FieldFormalParameter) {
-      return _planFieldFormalParameter(
-        parameter: parameter,
-        fieldsByName: fieldsByName,
-        parametersOffset: parametersOffset,
-      );
-    }
-    if (parameter is RegularFormalParameter) {
-      return _planPrivateFieldParameter(
-        parameter: parameter,
-        fieldsByName: fieldsByName,
-        privateFieldInitializersByName: privateFieldInitializersByName,
-        parametersOffset: parametersOffset,
-      );
-    }
-    if (parameter is SuperFormalParameter &&
-        _isSimpleSuperFormalParameter(parameter)) {
-      return const _ParameterMigrationPlan();
-    }
-    return null;
-  }
-
-  _ParameterMigrationPlan? _planFieldFormalParameter({
-    required FieldFormalParameter parameter,
-    required Map<String, _EligibleField> fieldsByName,
-    required int parametersOffset,
-  }) {
-    final fieldName = parameter.name.lexeme;
-    final field = fieldsByName[fieldName];
-    if (field == null || !_isSimpleFieldFormalParameter(parameter)) {
-      return null;
-    }
-    final shouldMoveComment = field.leadingCommentSource != null;
-    final replacementOffset = shouldMoveComment
-        ? parameter.offset
-        : parameter.thisKeyword.offset;
-    final prefix = shouldMoveComment
-        ? source.substring(parameter.offset, parameter.thisKeyword.offset)
-        : '';
-    return _ParameterMigrationPlan(
-      edits: [
-        SourceEdit(
-          offset: replacementOffset - parametersOffset,
-          length: parameter.name.end - replacementOffset,
-          replacement: _declaringParameterSource(
-            field,
-            fieldName,
-            prefix: prefix,
-          ),
-        ),
-      ],
-      removableFields: [field.declaration],
-      fieldNames: [fieldName],
-    );
-  }
-
-  _ParameterMigrationPlan? _planPrivateFieldParameter({
-    required RegularFormalParameter parameter,
-    required Map<String, _EligibleField> fieldsByName,
-    required Map<String, String> privateFieldInitializersByName,
-    required int parametersOffset,
-  }) {
-    final parameterName = parameter.name?.lexeme;
-    final parameterType = parameter.type;
-    if (parameterName == null ||
-        parameterName.startsWith('_') ||
-        parameterType == null ||
-        !parameter.isNamed ||
-        !_isSimpleRegularFormalParameter(parameter)) {
-      return null;
-    }
-
-    final fieldName = '_$parameterName';
-    final field = fieldsByName[fieldName];
-    if (field == null ||
-        privateFieldInitializersByName[fieldName] != parameterName ||
-        _sourceFor(source, parameterType) != field.typeSource) {
-      return null;
-    }
-
-    final shouldMoveComment = field.leadingCommentSource != null;
-    final replacementOffset = shouldMoveComment
-        ? parameter.offset
-        : parameterType.offset;
-    final prefix = shouldMoveComment
-        ? source.substring(parameter.offset, parameterType.offset)
-        : '';
-
-    return _ParameterMigrationPlan(
-      edits: [
-        SourceEdit(
-          offset: replacementOffset - parametersOffset,
-          length: parameter.name!.end - replacementOffset,
-          replacement: _declaringParameterSource(
-            field,
-            fieldName,
-            prefix: prefix,
-          ),
-        ),
-      ],
-      removableFields: [field.declaration],
-      fieldNames: [fieldName],
-      privateInitializerFieldNames: [fieldName],
-    );
-  }
-
   String _primaryConstructorBodySource({
     required ConstructorDeclaration constructor,
     required List<ConstructorInitializer> retainedInitializers,
@@ -533,6 +437,45 @@ class _ClassPrimaryConstructorPlanner {
         : ';';
     return '${indent}this$initializerSource$bodySource\n';
   }
+}
+
+sealed class _ClassPrimaryConstructorDecision {
+  const _ClassPrimaryConstructorDecision();
+}
+
+final class _MigratedClassPrimaryConstructor
+    extends _ClassPrimaryConstructorDecision {
+  const _MigratedClassPrimaryConstructor(this.plan);
+
+  final _ClassMigrationPlan plan;
+}
+
+final class _SkippedClassPrimaryConstructor
+    extends _ClassPrimaryConstructorDecision {
+  const _SkippedClassPrimaryConstructor(this.reason);
+
+  final DeclarationSkipReason reason;
+}
+
+final class _NoOpClassPrimaryConstructor
+    extends _ClassPrimaryConstructorDecision {
+  const _NoOpClassPrimaryConstructor();
+}
+
+sealed class _ConstructorParameterDecision {
+  const _ConstructorParameterDecision();
+}
+
+final class _PlannedConstructorParameter extends _ConstructorParameterDecision {
+  const _PlannedConstructorParameter(this.plan);
+
+  final _ParameterMigrationPlan plan;
+}
+
+final class _SkippedConstructorParameter extends _ConstructorParameterDecision {
+  const _SkippedConstructorParameter(this.reason);
+
+  final DeclarationSkipReason reason;
 }
 
 DeclarationSkipReason? _mappedFieldSkipReason({

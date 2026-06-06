@@ -105,11 +105,15 @@ class Already(final String id);
     });
 
     test(
-      'reports migrated and skipped classes from one file in source order',
+      'reports migrated, skipped, and no-op classes from one file in source order',
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
         const originalSource = '''
+class PlainBefore {
+  void ping() {}
+}
+
 class FirstSkipped {
   final String id;
 
@@ -122,6 +126,8 @@ class FirstMigrated {
   FirstMigrated(this.id);
 }
 
+class AlreadyBetween(final String id);
+
 class SecondSkipped {
   final String id;
 
@@ -132,6 +138,10 @@ class SecondMigrated {
   final String id;
 
   SecondMigrated(this.id);
+}
+
+class PlainAfter {
+  void pong() {}
 }
 ''';
         writeFile(root, 'lib/source.dart', originalSource);
@@ -181,6 +191,10 @@ class SecondMigrated {
         expect(decoded['transformCounts'], {'primaryConstructor': 2});
         expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 2});
         expect(await formattedFile(root, 'lib/source.dart'), '''
+class PlainBefore {
+  void ping() {}
+}
+
 class FirstSkipped {
   final String id;
 
@@ -189,6 +203,8 @@ class FirstSkipped {
 
 class FirstMigrated(final String id);
 
+class AlreadyBetween(final String id);
+
 class SecondSkipped {
   final String id;
 
@@ -196,6 +212,10 @@ class SecondSkipped {
 }
 
 class SecondMigrated(final String id);
+
+class PlainAfter {
+  void pong() {}
+}
 ''');
       },
     );

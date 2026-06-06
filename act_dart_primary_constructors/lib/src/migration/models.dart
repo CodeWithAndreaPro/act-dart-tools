@@ -252,16 +252,30 @@ class _PlannedFileMigration {
   const _PlannedFileMigration({
     required this.targetFile,
     required this.transformedSource,
-    required this.migratedDeclarations,
-    required this.skippedDeclarations,
-    required this.hasEdits,
+    required this.reportFacts,
   });
 
   final TargetDartFile targetFile;
   final String transformedSource;
+  final _FileMigrationReportFacts reportFacts;
+
+  bool get hasEdits => reportFacts.changedFile != null;
+}
+
+class _FileMigrationReportFacts {
+  const _FileMigrationReportFacts({
+    required this.changedFile,
+    required this.migratedDeclarations,
+    required this.skippedDeclarations,
+    required this.transformCounts,
+    required this.skipReasonCounts,
+  });
+
+  final String? changedFile;
   final List<_MigratedDeclaration> migratedDeclarations;
   final List<_SkippedDeclaration> skippedDeclarations;
-  final bool hasEdits;
+  final Map<String, int> transformCounts;
+  final Map<DeclarationSkipReason, int> skipReasonCounts;
 }
 
 class _DeclarationMigrationPlan {

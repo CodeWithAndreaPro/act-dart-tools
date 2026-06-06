@@ -68,18 +68,19 @@ class _MigrationReportAccumulator {
   };
 
   void addFilePlan(_PlannedFileMigration plan) {
-    _migratedDeclarations.addAll(plan.migratedDeclarations);
-    for (final migratedDeclaration in plan.migratedDeclarations) {
-      _transformCounts[migratedDeclaration.transform] =
-          (_transformCounts[migratedDeclaration.transform] ?? 0) + 1;
+    final facts = plan.reportFacts;
+    _migratedDeclarations.addAll(facts.migratedDeclarations);
+    _skippedDeclarations.addAll(facts.skippedDeclarations);
+    for (final entry in facts.transformCounts.entries) {
+      _transformCounts[entry.key] =
+          (_transformCounts[entry.key] ?? 0) + entry.value;
     }
-    for (final skippedDeclaration in plan.skippedDeclarations) {
-      _skippedDeclarations.add(skippedDeclaration);
-      _skipReasonCounts[skippedDeclaration.reason] =
-          _skipReasonCounts[skippedDeclaration.reason]! + 1;
+    for (final entry in facts.skipReasonCounts.entries) {
+      _skipReasonCounts[entry.key] =
+          _skipReasonCounts[entry.key]! + entry.value;
     }
-    if (plan.hasEdits) {
-      _changedFiles.add(plan.targetFile.relativePath);
+    if (facts.changedFile case final changedFile?) {
+      _changedFiles.add(changedFile);
     }
   }
 

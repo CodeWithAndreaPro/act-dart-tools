@@ -129,3 +129,7 @@ List<String> discoveredPaths(TargetPackageFiles files) {
 List<Map<String, Object?>> skippedFileReports(TargetPackageFiles files) {
   return [for (final file in files.skippedFiles) file.toJson()];
 }
+
+List<Map<String, Object?>> skippedDirectoryReports(TargetPackageFiles files) {
+  return [for (final directory in files.skippedDirectories) directory.toJson()];
+}

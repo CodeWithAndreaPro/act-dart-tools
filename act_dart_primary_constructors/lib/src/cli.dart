@@ -118,6 +118,7 @@ Future<int> _runMigrate(
     migratedDeclarations: migration.migratedDeclarations,
     skippedDeclarations: migration.skippedDeclarations,
     skippedFiles: discovery.skippedFileReports,
+    skippedDirectories: discovery.skippedDirectoryReports,
     transformCounts: migration.transformCounts,
     skipReasonCounts: _combineSkipReasonCounts(
       discovery.skipReasonCounts,
@@ -214,12 +215,25 @@ void _writeTextReport(
     ..writeln('Changed files: ${report.changedFiles.length}')
     ..writeln('Migrated declarations: ${report.migratedDeclarations.length}')
     ..writeln('Skipped declarations: ${report.skippedDeclarations.length}')
-    ..writeln('Skipped files: ${report.skippedFiles.length}');
+    ..writeln('Skipped files: ${report.skippedFiles.length}')
+    ..writeln('Skipped directories: ${report.skippedDirectories.length}');
 
   if (includeSkipped && report.skippedFiles.isNotEmpty) {
     stdout.writeln('Skipped file details:');
     for (final skippedFile in report.skippedFiles) {
       if (skippedFile case {
+        'path': final String path,
+        'reason': final String reason,
+      }) {
+        stdout.writeln('- $path ($reason)');
+      }
+    }
+  }
+
+  if (includeSkipped && report.skippedDirectories.isNotEmpty) {
+    stdout.writeln('Skipped directory details:');
+    for (final skippedDirectory in report.skippedDirectories) {
+      if (skippedDirectory case {
         'path': final String path,
         'reason': final String reason,
       }) {

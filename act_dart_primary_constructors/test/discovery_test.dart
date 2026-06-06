@@ -26,6 +26,7 @@ void main() {
         'tool/task.dart',
       ]);
       expect(files.skippedFiles, isEmpty);
+      expect(files.skippedDirectories, isEmpty);
     });
 
     test('excludes generated Dart files conservatively', () async {
@@ -48,6 +49,7 @@ void main() {
         {'path': 'lib/marker.dart', 'reason': 'generatedFile'},
         {'path': 'lib/model.g.dart', 'reason': 'generatedFile'},
       ]);
+      expect(files.skippedDirectories, isEmpty);
     });
 
     test('excludes transient and hidden tooling directories', () async {
@@ -62,11 +64,12 @@ void main() {
       final files = discoverTargetPackageFiles(root);
 
       expect(discoveredPaths(files), ['lib/source.dart']);
-      expect(skippedFileReports(files), [
-        {'path': '.dart_tool/build/source.dart', 'reason': 'excludedDirectory'},
-        {'path': '.vscode/snippet.dart', 'reason': 'excludedDirectory'},
-        {'path': 'build/cache.dart', 'reason': 'excludedDirectory'},
-        {'path': 'coverage/report.dart', 'reason': 'excludedDirectory'},
+      expect(files.skippedFiles, isEmpty);
+      expect(skippedDirectoryReports(files), [
+        {'path': '.dart_tool', 'reason': 'excludedDirectory'},
+        {'path': '.vscode', 'reason': 'excludedDirectory'},
+        {'path': 'build', 'reason': 'excludedDirectory'},
+        {'path': 'coverage', 'reason': 'excludedDirectory'},
       ]);
     });
 
@@ -83,11 +86,57 @@ void main() {
       );
 
       expect(discoveredPaths(rootFiles), ['lib/root.dart']);
-      expect(skippedFileReports(rootFiles), [
-        {'path': 'packages/nested/lib/nested.dart', 'reason': 'nestedPackage'},
+      expect(rootFiles.skippedFiles, isEmpty);
+      expect(skippedDirectoryReports(rootFiles), [
+        {'path': 'packages/nested', 'reason': 'nestedPackage'},
       ]);
       expect(discoveredPaths(nestedFiles), ['lib/nested.dart']);
       expect(nestedFiles.skippedFiles, isEmpty);
+      expect(nestedFiles.skippedDirectories, isEmpty);
+    });
+
+    test('reports nested git repositories before nested packages', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/root.dart', 'void root() {}');
+      writeFile(root, 'repos/nested/pubspec.yaml', 'name: nested_package\n');
+      writeFile(root, 'repos/nested/.git/HEAD', 'ref: refs/heads/main\n');
+      writeFile(root, 'repos/nested/lib/nested.dart', 'void nested() {}');
+      writeFile(root, 'worktrees/checkout/pubspec.yaml', 'name: checkout\n');
+      writeFile(
+        root,
+        'worktrees/checkout/.git',
+        'gitdir: /tmp/checkout/.git\n',
+      );
+      writeFile(
+        root,
+        'worktrees/checkout/lib/checkout.dart',
+        'void checkout() {}',
+      );
+
+      final files = discoverTargetPackageFiles(root);
+
+      expect(discoveredPaths(files), ['lib/root.dart']);
+      expect(files.skippedFiles, isEmpty);
+      expect(skippedDirectoryReports(files), [
+        {'path': 'repos/nested', 'reason': 'nestedRepository'},
+        {'path': 'worktrees/checkout', 'reason': 'nestedRepository'},
+      ]);
+    });
+
+    test('does not inspect Dart files inside skipped directories', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/source.dart', 'void source() {}');
+      writeFile(root, 'build/generated.g.dart', 'not valid dart');
+
+      final files = discoverTargetPackageFiles(root);
+
+      expect(discoveredPaths(files), ['lib/source.dart']);
+      expect(files.skippedFiles, isEmpty);
+      expect(skippedDirectoryReports(files), [
+        {'path': 'build', 'reason': 'excludedDirectory'},
+      ]);
     });
 
     test('orders discovered and skipped files by relative path', () async {
@@ -102,8 +151,10 @@ void main() {
 
       expect(discoveredPaths(files), ['lib/a.dart', 'test/z_test.dart']);
       expect(skippedFileReports(files), [
-        {'path': '.dart_tool/b.dart', 'reason': 'excludedDirectory'},
         {'path': 'lib/z.g.dart', 'reason': 'generatedFile'},
+      ]);
+      expect(skippedDirectoryReports(files), [
+        {'path': '.dart_tool', 'reason': 'excludedDirectory'},
       ]);
     });
   });

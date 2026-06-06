@@ -3,7 +3,8 @@ import 'dart:io' as io;
 enum FileSkipReason {
   generatedFile('generatedFile'),
   nestedPackage('nestedPackage'),
-  excludedDirectory('excludedDirectory');
+  excludedDirectory('excludedDirectory'),
+  nestedRepository('nestedRepository');
 
   const FileSkipReason(this.code);
 
@@ -14,19 +15,28 @@ class TargetPackageFiles {
   const TargetPackageFiles({
     required this.dartFiles,
     required this.skippedFiles,
+    required this.skippedDirectories,
   });
 
   final List<TargetDartFile> dartFiles;
   final List<SkippedDartFile> skippedFiles;
+  final List<SkippedDirectory> skippedDirectories;
 
   List<Map<String, Object?>> get skippedFileReports {
     return [for (final file in skippedFiles) file.toJson()];
+  }
+
+  List<Map<String, Object?>> get skippedDirectoryReports {
+    return [for (final directory in skippedDirectories) directory.toJson()];
   }
 
   Map<String, int> get skipReasonCounts {
     final counts = {for (final reason in FileSkipReason.values) reason: 0};
     for (final file in skippedFiles) {
       counts[file.reason] = counts[file.reason]! + 1;
+    }
+    for (final directory in skippedDirectories) {
+      counts[directory.reason] = counts[directory.reason]! + 1;
     }
     return {
       for (final reason in FileSkipReason.values)
@@ -53,11 +63,23 @@ class SkippedDartFile {
   }
 }
 
+class SkippedDirectory {
+  const SkippedDirectory({required this.relativePath, required this.reason});
+
+  final String relativePath;
+  final FileSkipReason reason;
+
+  Map<String, Object?> toJson() {
+    return {'path': relativePath, 'reason': reason.code};
+  }
+}
+
 TargetPackageFiles discoverTargetPackageFiles(io.Directory root) {
   final rootDirectory = root.absolute;
   final rootPath = _directoryPath(rootDirectory);
   final dartFiles = <TargetDartFile>[];
   final skippedFiles = <SkippedDartFile>[];
+  final skippedDirectories = <SkippedDirectory>[];
 
   void walk(io.Directory directory) {
     final entries = directory.listSync(followLinks: false)
@@ -72,7 +94,12 @@ TargetPackageFiles discoverTargetPackageFiles(io.Directory root) {
         if (skipReason == null) {
           walk(entry);
         } else {
-          _collectSkippedDartFiles(rootPath, entry, skipReason, skippedFiles);
+          skippedDirectories.add(
+            SkippedDirectory(
+              relativePath: _relativeDirectoryPath(rootPath, entry),
+              reason: skipReason,
+            ),
+          );
         }
       } else if (entry is io.File && _isDartFile(entry)) {
         final relativePath = _relativePath(rootPath, entry);
@@ -95,13 +122,21 @@ TargetPackageFiles discoverTargetPackageFiles(io.Directory root) {
   walk(rootDirectory);
   dartFiles.sort((a, b) => a.relativePath.compareTo(b.relativePath));
   skippedFiles.sort((a, b) => a.relativePath.compareTo(b.relativePath));
-  return TargetPackageFiles(dartFiles: dartFiles, skippedFiles: skippedFiles);
+  skippedDirectories.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+  return TargetPackageFiles(
+    dartFiles: dartFiles,
+    skippedFiles: skippedFiles,
+    skippedDirectories: skippedDirectories,
+  );
 }
 
 FileSkipReason? _directorySkipReason(
   io.Directory rootDirectory,
   io.Directory directory,
 ) {
+  if (!_samePath(rootDirectory, directory) && _isGitRepository(directory)) {
+    return FileSkipReason.nestedRepository;
+  }
   final name = _basename(directory.path);
   if (name.startsWith('.') || _excludedDirectoryNames.contains(name)) {
     return FileSkipReason.excludedDirectory;
@@ -115,27 +150,11 @@ FileSkipReason? _directorySkipReason(
   return null;
 }
 
-void _collectSkippedDartFiles(
-  String rootPath,
-  io.Directory directory,
-  FileSkipReason reason,
-  List<SkippedDartFile> skippedFiles,
-) {
-  final entries = directory.listSync(recursive: true, followLinks: false)
-    ..sort(
-      (a, b) =>
-          _relativePath(rootPath, a).compareTo(_relativePath(rootPath, b)),
-    );
-  for (final entry in entries) {
-    if (entry is io.File && _isDartFile(entry)) {
-      skippedFiles.add(
-        SkippedDartFile(
-          relativePath: _relativePath(rootPath, entry),
-          reason: reason,
-        ),
-      );
-    }
-  }
+bool _isGitRepository(io.Directory directory) {
+  final gitPath = '${directory.path}${io.Platform.pathSeparator}.git';
+  final type = io.FileSystemEntity.typeSync(gitPath, followLinks: false);
+  return type == io.FileSystemEntityType.directory ||
+      type == io.FileSystemEntityType.file;
 }
 
 bool _isDartFile(io.File file) => file.path.endsWith('.dart');
@@ -177,6 +196,14 @@ String _relativePath(String rootPath, io.FileSystemEntity entity) {
       ? path.substring(prefix.length)
       : path;
   return relativePath.replaceAll(separator, '/');
+}
+
+String _relativeDirectoryPath(String rootPath, io.Directory directory) {
+  final relativePath = _relativePath(rootPath, directory);
+  if (relativePath.endsWith('/')) {
+    return relativePath.substring(0, relativePath.length - 1);
+  }
+  return relativePath;
 }
 
 String _basename(String path) {

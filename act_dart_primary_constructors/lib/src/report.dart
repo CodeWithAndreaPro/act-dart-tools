@@ -13,6 +13,7 @@ class MigrationReport {
     this.migratedDeclarations = const [],
     this.skippedDeclarations = const [],
     this.skippedFiles = const [],
+    this.skippedDirectories = const [],
     this.transformCounts = const {},
     this.skipReasonCounts = const {},
   });
@@ -24,6 +25,7 @@ class MigrationReport {
   final List<Object?> migratedDeclarations;
   final List<Object?> skippedDeclarations;
   final List<Object?> skippedFiles;
+  final List<Object?> skippedDirectories;
   final Map<String, int> transformCounts;
   final Map<String, int> skipReasonCounts;
 
@@ -40,6 +42,7 @@ class MigrationReport {
       'migratedDeclarations': migratedDeclarations,
       'skippedDeclarations': skippedDeclarations,
       'skippedFiles': skippedFiles,
+      'skippedDirectories': skippedDirectories,
       'transformCounts': transformCounts,
       'skipReasonCounts': skipReasonCounts,
     };

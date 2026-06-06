@@ -96,37 +96,23 @@ class _ClassPrimaryConstructorPlanner {
       );
     }
 
-    final parameterPlans = <_ParameterMigrationPlan>[];
-    final fieldToParameterPlanner = _FieldToParameterPlanner(
-      source: source,
-      declaration: declaration,
-      privateFieldInitializersByName: privateFieldInitializersByName,
-    );
-    for (final parameter in constructor.parameters.parameters) {
-      final parameterDecision =
-          parameter is SuperFormalParameter &&
-              _isSimpleSuperFormalParameter(parameter)
-          ? const _PlannedConstructorParameter(_ParameterMigrationPlan())
-          : fieldToParameterPlanner.decide(parameter);
-      switch (parameterDecision) {
-        case _PlannedConstructorParameter(:final plan):
-          parameterPlans.add(plan);
-        case _SkippedConstructorParameter(:final reason):
-          return _SkippedClassPrimaryConstructor(reason);
-      }
-    }
-
-    if (fieldToParameterPlanner.hasUnusedPrivateFieldInitializers) {
-      return const _SkippedClassPrimaryConstructor(
-        DeclarationSkipReason.unsupportedInitializer,
-      );
-    }
-    for (final fieldInitializer in initializationPlan.fieldInitializers) {
-      if (fieldToParameterPlanner.usesField(fieldInitializer.fieldName)) {
-        return const _SkippedClassPrimaryConstructor(
-          DeclarationSkipReason.unsupportedInitializer,
+    final fieldToParameterDecision =
+        _FieldToParameterPlanner(
+          source: source,
+          declaration: declaration,
+          privateFieldInitializersByName: privateFieldInitializersByName,
+        ).decideConstructorParameters(
+          parameters: constructor.parameters,
+          fieldInitializers: initializationPlan.fieldInitializers,
         );
-      }
+    final List<_ParameterMigrationPlan> parameterPlans;
+    switch (fieldToParameterDecision) {
+      case _PlannedFieldToParameter(
+        parameterPlans: final plannedParameterPlans,
+      ):
+        parameterPlans = plannedParameterPlans;
+      case _SkippedFieldToParameter(:final reason):
+        return _SkippedClassPrimaryConstructor(reason);
     }
 
     return _MigratedClassPrimaryConstructor(
@@ -224,31 +210,6 @@ final class _NoOpClassPrimaryConstructor
   const _NoOpClassPrimaryConstructor();
 }
 
-sealed class _ConstructorParameterDecision {
-  const _ConstructorParameterDecision();
-}
-
-final class _PlannedConstructorParameter extends _ConstructorParameterDecision {
-  const _PlannedConstructorParameter(this.plan);
-
-  final _ParameterMigrationPlan plan;
-}
-
-final class _SkippedConstructorParameter extends _ConstructorParameterDecision {
-  const _SkippedConstructorParameter(this.reason);
-
-  final DeclarationSkipReason reason;
-}
-
 bool _isUnnamedConstructor(ConstructorDeclaration constructor) {
   return constructor.name == null && constructor.period == null;
-}
-
-bool _isSimpleSuperFormalParameter(SuperFormalParameter parameter) {
-  return parameter.metadata.isEmpty &&
-      parameter.documentationComment == null &&
-      parameter.constFinalOrVarKeyword == null &&
-      parameter.covariantKeyword == null &&
-      parameter.type == null &&
-      parameter.functionTypedSuffix == null;
 }

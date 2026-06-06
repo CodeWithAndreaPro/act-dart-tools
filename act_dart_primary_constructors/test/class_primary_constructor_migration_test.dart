@@ -267,6 +267,38 @@ class Session({required final String _id});
 ''');
     });
 
+    test(
+      'migrates private named fields with initializer assignments',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/account.dart', '''
+class Account {
+  final String _id;
+  final int score;
+  final int doubledScore;
+
+  Account({required String id, required this.score})
+      : _id = id,
+        doubledScore = score * 2;
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/account.dart',
+          declarationName: 'Account',
+        );
+        expect(await formattedFile(root, 'lib/account.dart'), '''
+class Account({required final String _id, required final int score}) {
+  final int doubledScore = score * 2;
+}
+''');
+      },
+    );
+
     test('preserves simple super parameters unchanged', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

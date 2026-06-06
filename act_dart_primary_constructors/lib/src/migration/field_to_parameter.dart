@@ -13,14 +13,47 @@ final class _FieldToParameterPlanner {
   final Set<String> _usedFieldNames = <String>{};
   final Set<String> _usedPrivateInitializers = <String>{};
 
-  bool get hasUnusedPrivateFieldInitializers {
+  bool get _hasUnusedPrivateFieldInitializers {
     return _usedPrivateInitializers.length !=
         privateFieldInitializersByName.length;
   }
 
-  bool usesField(String fieldName) => _usedFieldNames.contains(fieldName);
+  _FieldToParameterDecision decideConstructorParameters({
+    required FormalParameterList parameters,
+    required List<_FieldInitializerMigration> fieldInitializers,
+  }) {
+    final parameterPlans = <_ParameterMigrationPlan>[];
+    for (final parameter in parameters.parameters) {
+      final parameterDecision =
+          parameter is SuperFormalParameter &&
+              _isSimpleSuperFormalParameter(parameter)
+          ? const _PlannedConstructorParameter(_ParameterMigrationPlan())
+          : _decideParameter(parameter);
+      switch (parameterDecision) {
+        case _PlannedConstructorParameter(:final plan):
+          parameterPlans.add(plan);
+        case _SkippedConstructorParameter(:final reason):
+          return _SkippedFieldToParameter(reason);
+      }
+    }
 
-  _ConstructorParameterDecision decide(FormalParameter parameter) {
+    if (_hasUnusedPrivateFieldInitializers) {
+      return const _SkippedFieldToParameter(
+        DeclarationSkipReason.unsupportedInitializer,
+      );
+    }
+    for (final fieldInitializer in fieldInitializers) {
+      if (_usedFieldNames.contains(fieldInitializer.fieldName)) {
+        return const _SkippedFieldToParameter(
+          DeclarationSkipReason.unsupportedInitializer,
+        );
+      }
+    }
+
+    return _PlannedFieldToParameter(parameterPlans);
+  }
+
+  _ConstructorParameterDecision _decideParameter(FormalParameter parameter) {
     if (parameter.metadata.isNotEmpty) {
       return const _SkippedConstructorParameter(
         DeclarationSkipReason.parameterMetadata,
@@ -161,6 +194,38 @@ final class _FieldToParameterPlanner {
       fieldName: fieldName,
     );
   }
+}
+
+sealed class _FieldToParameterDecision {
+  const _FieldToParameterDecision();
+}
+
+final class _PlannedFieldToParameter extends _FieldToParameterDecision {
+  const _PlannedFieldToParameter(this.parameterPlans);
+
+  final List<_ParameterMigrationPlan> parameterPlans;
+}
+
+final class _SkippedFieldToParameter extends _FieldToParameterDecision {
+  const _SkippedFieldToParameter(this.reason);
+
+  final DeclarationSkipReason reason;
+}
+
+sealed class _ConstructorParameterDecision {
+  const _ConstructorParameterDecision();
+}
+
+final class _PlannedConstructorParameter extends _ConstructorParameterDecision {
+  const _PlannedConstructorParameter(this.plan);
+
+  final _ParameterMigrationPlan plan;
+}
+
+final class _SkippedConstructorParameter extends _ConstructorParameterDecision {
+  const _SkippedConstructorParameter(this.reason);
+
+  final DeclarationSkipReason reason;
 }
 
 DeclarationSkipReason? _mappedFieldSkipReason({
@@ -319,5 +384,14 @@ bool _isSimpleRegularFormalParameter(RegularFormalParameter parameter) {
       parameter.documentationComment == null &&
       parameter.constFinalOrVarKeyword == null &&
       parameter.covariantKeyword == null &&
+      parameter.functionTypedSuffix == null;
+}
+
+bool _isSimpleSuperFormalParameter(SuperFormalParameter parameter) {
+  return parameter.metadata.isEmpty &&
+      parameter.documentationComment == null &&
+      parameter.constFinalOrVarKeyword == null &&
+      parameter.covariantKeyword == null &&
+      parameter.type == null &&
       parameter.functionTypedSuffix == null;
 }

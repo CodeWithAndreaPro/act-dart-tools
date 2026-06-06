@@ -552,6 +552,25 @@ class UnsupportedInitializer {
       );
     });
 
+    test('skips unused private-field initializers precisely', () async {
+      const originalSource = '''
+class UnusedPrivateInitializer {
+  final String id;
+  final String _id;
+
+  UnusedPrivateInitializer(this.id) : _id = id;
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/unused_private_initializer.dart',
+        originalSource: originalSource,
+        declarationName: 'UnusedPrivateInitializer',
+        reason: 'unsupportedInitializer',
+        message: 'This constructor initializer is not supported.',
+      );
+    });
+
     test('skips initializer dependencies on instance state precisely', () async {
       const originalSource = '''
 class UnsafeInitializerDependency {

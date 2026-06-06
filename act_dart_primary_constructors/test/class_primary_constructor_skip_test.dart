@@ -634,6 +634,75 @@ class FieldInitializingBody {
       );
     });
 
+    for (final scenario in [
+      (
+        name: 'direct field writes',
+        declarationName: 'DirectFieldWriteBody',
+        source: '''
+class DirectFieldWriteBody {
+  int count;
+
+  DirectFieldWriteBody(this.count, int delta) {
+    count = count + delta;
+  }
+}
+''',
+      ),
+      (
+        name: 'prefix field writes',
+        declarationName: 'PrefixFieldWriteBody',
+        source: '''
+class PrefixFieldWriteBody {
+  int count;
+
+  PrefixFieldWriteBody(this.count) {
+    ++count;
+  }
+}
+''',
+      ),
+      (
+        name: 'postfix field writes',
+        declarationName: 'PostfixFieldWriteBody',
+        source: '''
+class PostfixFieldWriteBody {
+  int count;
+
+  PostfixFieldWriteBody(this.count) {
+    count++;
+  }
+}
+''',
+      ),
+      (
+        name: 'nested field writes',
+        declarationName: 'NestedFieldWriteBody',
+        source: '''
+class NestedFieldWriteBody {
+  int count;
+
+  NestedFieldWriteBody(this.count) {
+    void increment() {
+      count++;
+    }
+    increment();
+  }
+}
+''',
+      ),
+    ]) {
+      test('skips ${scenario.name} in constructor bodies precisely', () async {
+        await expectSinglePrimaryConstructorSkip(
+          relativePath: 'lib/body_field_write.dart',
+          originalSource: scenario.source,
+          declarationName: scenario.declarationName,
+          reason: 'fieldInitializingConstructorBody',
+          message:
+              'Constructor bodies that initialize instance fields are not supported.',
+        );
+      });
+    }
+
     test('skips compound field writes in constructor bodies precisely', () async {
       const originalSource = '''
 class CompoundFieldWriteBody {

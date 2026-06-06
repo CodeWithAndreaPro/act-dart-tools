@@ -129,9 +129,26 @@ final class _ConstructorInitializationPlanner {
     if (fieldNames.isEmpty) {
       return false;
     }
-    final visitor = _FieldWriteVisitor(fieldNames);
+    final visitor = _FieldWriteVisitor(
+      fieldNames,
+      _constructorBodyLocalNames(),
+    );
     body.accept(visitor);
     return visitor.hasFieldWrite;
+  }
+
+  Set<String> _constructorBodyLocalNames() {
+    return {
+      for (final parameter in constructor.parameters.parameters)
+        ?_constructorBodyLocalParameterName(parameter),
+    };
+  }
+
+  String? _constructorBodyLocalParameterName(FormalParameter parameter) {
+    if (parameter is FieldFormalParameter) {
+      return null;
+    }
+    return parameter.name?.lexeme;
   }
 
   String? _primaryBodySource(
@@ -230,10 +247,24 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
 }
 
 class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
-  _FieldWriteVisitor(this.fieldNames);
+  _FieldWriteVisitor(this.fieldNames, Set<String> initialLocalNames)
+    : _scopes = [initialLocalNames];
 
   final Set<String> fieldNames;
+  final List<Set<String>> _scopes;
   bool hasFieldWrite = false;
+
+  @override
+  void visitBlock(Block node) {
+    _withScope(() {
+      for (final statement in node.statements) {
+        if (hasFieldWrite) {
+          return;
+        }
+        statement.accept(this);
+      }
+    });
+  }
 
   @override
   void visitAssignmentExpression(AssignmentExpression node) {
@@ -263,14 +294,59 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
     }
   }
 
+  @override
+  void visitFunctionDeclarationStatement(FunctionDeclarationStatement node) {
+    _declare(node.functionDeclaration.name.lexeme);
+    node.functionDeclaration.functionExpression.accept(this);
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    _withScope(() {
+      _declareParameters(node.parameters);
+      node.body.accept(this);
+    });
+  }
+
+  @override
+  void visitVariableDeclarationStatement(VariableDeclarationStatement node) {
+    _visitVariableDeclarations(node.variables);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    _withScope(() {
+      if (node.exceptionParameter case final exceptionParameter?) {
+        _declare(exceptionParameter.name.lexeme);
+      }
+      if (node.stackTraceParameter case final stackTraceParameter?) {
+        _declare(stackTraceParameter.name.lexeme);
+      }
+      node.body.accept(this);
+    });
+  }
+
+  @override
+  void visitForElement(ForElement node) {
+    _visitForLoop(node.forLoopParts, node.body);
+  }
+
+  @override
+  void visitForStatement(ForStatement node) {
+    _visitForLoop(node.forLoopParts, node.body);
+  }
+
   void _checkWriteTarget(Expression target) {
     final fieldName = _fieldWriteTargetName(target);
-    if (fieldName != null && fieldNames.contains(fieldName)) {
+    if (fieldName != null &&
+        fieldNames.contains(fieldName) &&
+        (_isExplicitThisTarget(target) || !_isLocalName(fieldName))) {
       hasFieldWrite = true;
     }
   }
 
   String? _fieldWriteTargetName(Expression target) {
+    target = _unparenthesized(target);
     if (target is SimpleIdentifier) {
       return target.token.lexeme;
     }
@@ -280,9 +356,110 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
     if (target is PropertyAccess && target.target is ThisExpression) {
       return target.propertyName.token.lexeme;
     }
-    if (target is ParenthesizedExpression) {
-      return _fieldWriteTargetName(target.expression);
-    }
     return null;
+  }
+
+  bool _isExplicitThisTarget(Expression target) {
+    target = _unparenthesized(target);
+    if (target is PrefixedIdentifier && target.prefix.token.lexeme == 'this') {
+      return true;
+    }
+    return target is PropertyAccess && target.target is ThisExpression;
+  }
+
+  Expression _unparenthesized(Expression target) {
+    while (target is ParenthesizedExpression) {
+      target = target.expression;
+    }
+    return target;
+  }
+
+  void _visitVariableDeclarations(VariableDeclarationList variables) {
+    for (final variable in variables.variables) {
+      variable.initializer?.accept(this);
+      _declare(variable.name.lexeme);
+      if (hasFieldWrite) {
+        return;
+      }
+    }
+  }
+
+  void _visitForLoop(ForLoopParts forLoopParts, AstNode body) {
+    _withScope(() {
+      _visitForLoopParts(forLoopParts);
+      if (!hasFieldWrite) {
+        body.accept(this);
+      }
+    });
+  }
+
+  void _visitForLoopParts(ForLoopParts parts) {
+    switch (parts) {
+      case ForPartsWithDeclarations(:final variables):
+        _visitVariableDeclarations(variables);
+        _visitForPartsRemainder(parts);
+      case ForPartsWithExpression(:final initialization):
+        initialization?.accept(this);
+        _visitForPartsRemainder(parts);
+      case ForPartsWithPattern():
+        _visitForPartsRemainder(parts);
+      case ForEachPartsWithDeclaration(:final loopVariable):
+        parts.iterable.accept(this);
+        _declare(loopVariable.name.lexeme);
+      case ForEachPartsWithIdentifier(:final identifier):
+        parts.iterable.accept(this);
+        _checkWriteTarget(identifier);
+      case ForEachPartsWithPattern():
+        parts.iterable.accept(this);
+    }
+  }
+
+  void _visitForPartsRemainder(ForParts parts) {
+    if (hasFieldWrite) {
+      return;
+    }
+    parts.condition?.accept(this);
+    for (final updater in parts.updaters) {
+      if (hasFieldWrite) {
+        return;
+      }
+      updater.accept(this);
+    }
+  }
+
+  void _declareParameters(FormalParameterList? parameters) {
+    if (parameters == null) {
+      return;
+    }
+    for (final parameter in parameters.parameters) {
+      if (parameter is FieldFormalParameter) {
+        continue;
+      }
+      if (parameter.name case final name?) {
+        _declare(name.lexeme);
+      }
+    }
+  }
+
+  void _declare(String name) {
+    _scopes.last.add(name);
+  }
+
+  bool _isLocalName(String name) {
+    for (final scope in _scopes.reversed) {
+      if (scope.contains(name)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _withScope(void Function() run) {
+    _scopes.add(<String>{});
+    try {
+      run();
+    } finally {
+      _scopes.removeLast();
+    }
   }
 }

@@ -567,6 +567,49 @@ class Guarded(final String id) {
 ''');
     });
 
+    test('moves bodies that write local variables shadowing fields', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/shadowed.dart', '''
+class ShadowedBody {
+  final String id;
+
+  ShadowedBody(this.id) {
+    var id = 'local';
+    id = id.trim();
+    {
+      var id = 'nested';
+      id = id.toUpperCase();
+      print(id);
+    }
+    print(id);
+  }
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/shadowed.dart',
+        declarationName: 'ShadowedBody',
+      );
+      expect(await formattedFile(root, 'lib/shadowed.dart'), '''
+class ShadowedBody(final String id) {
+  this {
+    var id = 'local';
+    id = id.trim();
+    {
+      var id = 'nested';
+      id = id.toUpperCase();
+      print(id);
+    }
+    print(id);
+  }
+}
+''');
+    });
+
     test(
       'moves directly attached documentation comments to parameters',
       () async {

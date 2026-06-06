@@ -101,11 +101,11 @@ class _FileMigrationReportFacts {
 class _DeclarationMigrationPlan {
   const _DeclarationMigrationPlan({
     this.edits = const [],
-    this.migratedDeclaration,
-    this.skippedDeclaration,
+    this.migratedDeclarations = const [],
+    this.skippedDeclarations = const [],
   });
 
   final List<SourceEdit> edits;
-  final MigratedDeclarationReport? migratedDeclaration;
-  final SkippedDeclarationReport? skippedDeclaration;
+  final List<MigratedDeclarationReport> migratedDeclarations;
+  final List<SkippedDeclarationReport> skippedDeclarations;
 }

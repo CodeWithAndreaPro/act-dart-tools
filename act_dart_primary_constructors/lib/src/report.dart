@@ -5,6 +5,8 @@ import 'version.dart';
 
 const schemaVersion = 1;
 const primaryConstructorTransform = 'primaryConstructor';
+const constructorShorthandTransform = 'constructorShorthand';
+const emptyClassBodyTransform = 'emptyClassBody';
 
 enum DeclarationSkipReason {
   multipleConstructors(
@@ -450,7 +452,7 @@ int _compareDeclarationSortValues(
     return offsetComparison;
   }
 
-  final transformComparison = a.transform.compareTo(b.transform);
+  final transformComparison = _compareTransformOrder(a.transform, b.transform);
   if (transformComparison != 0) {
     return transformComparison;
   }
@@ -461,6 +463,21 @@ int _compareDeclarationSortValues(
   }
 
   return a.reason.compareTo(b.reason);
+}
+
+int _compareTransformOrder(String a, String b) {
+  final aIndex = _knownTransformOrder.indexOf(a);
+  final bIndex = _knownTransformOrder.indexOf(b);
+  if (aIndex != -1 && bIndex != -1) {
+    return aIndex.compareTo(bIndex);
+  }
+  if (aIndex != -1) {
+    return -1;
+  }
+  if (bIndex != -1) {
+    return 1;
+  }
+  return a.compareTo(b);
 }
 
 Map<String, int> _orderedTransformCounts(Map<String, int> counts) {
@@ -513,4 +530,8 @@ void _addCount(Map<String, int> counts, String key, int count) {
   counts[key] = (counts[key] ?? 0) + count;
 }
 
-const _knownTransformOrder = [primaryConstructorTransform];
+const _knownTransformOrder = [
+  primaryConstructorTransform,
+  constructorShorthandTransform,
+  emptyClassBodyTransform,
+];

@@ -55,18 +55,20 @@ class _TargetFileDeclarationPlanner {
       _MigratedClassPrimaryConstructor(:final plan) =>
         _DeclarationMigrationPlan(
           edits: plan.edits,
-          migratedDeclaration: plan.migratedDeclaration,
+          migratedDeclarations: [plan.migratedDeclaration],
         ),
       _SkippedClassPrimaryConstructor(:final reason) =>
         _DeclarationMigrationPlan(
-          skippedDeclaration: SkippedDeclarationReport(
-            path: targetFile.relativePath,
-            declarationKind: 'class',
-            declarationName: declaration.namePart.typeName.lexeme,
-            transform: primaryConstructorTransform,
-            offset: declaration.offset,
-            reason: reason,
-          ),
+          skippedDeclarations: [
+            SkippedDeclarationReport(
+              path: targetFile.relativePath,
+              declarationKind: 'class',
+              declarationName: declaration.namePart.typeName.lexeme,
+              transform: primaryConstructorTransform,
+              offset: declaration.offset,
+              reason: reason,
+            ),
+          ],
         ),
       _NoOpClassPrimaryConstructor() => const _DeclarationMigrationPlan(),
     };
@@ -87,12 +89,8 @@ class _TargetFileMigrationPlanBuilder {
 
   void addDeclarationPlan(_DeclarationMigrationPlan plan) {
     _edits.addAll(plan.edits);
-    if (plan.migratedDeclaration case final migratedDeclaration?) {
-      _migratedDeclarations.add(migratedDeclaration);
-    }
-    if (plan.skippedDeclaration case final skippedDeclaration?) {
-      _skippedDeclarations.add(skippedDeclaration);
-    }
+    _migratedDeclarations.addAll(plan.migratedDeclarations);
+    _skippedDeclarations.addAll(plan.skippedDeclarations);
   }
 
   _PlannedFileMigration? build() {

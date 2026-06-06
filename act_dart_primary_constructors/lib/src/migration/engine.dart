@@ -90,9 +90,8 @@ class _MigrationReportAccumulator {
       migratedDeclarations: _migratedDeclarations,
       skippedDeclarations: _skippedDeclarations,
       transformCounts: {
-        if ((_transformCounts[primaryConstructorTransform] ?? 0) != 0)
-          primaryConstructorTransform:
-              _transformCounts[primaryConstructorTransform]!,
+        for (final entry in _transformCounts.entries)
+          if (entry.value != 0) entry.key: entry.value,
       },
       skipReasonCounts: {
         for (final reason in DeclarationSkipReason.values)

@@ -176,6 +176,178 @@ void main() {
       ]);
     });
 
+    test(
+      'serializes mixed declaration facts and V1 transform counts in order',
+      () {
+        final report = MigrationReport.fromRun(
+          root: '/target',
+          mode: 'safe',
+          dryRun: true,
+          discovery: const TargetPackageFiles(
+            dartFiles: [],
+            skippedFiles: [],
+            skippedDirectories: [],
+          ),
+          migration: const MigrationRunResult(
+            changedFiles: [],
+            migratedDeclarations: [
+              MigratedDeclarationReport(
+                path: 'lib/source.dart',
+                declarationKind: 'class',
+                declarationName: 'Body',
+                transform: emptyClassBodyTransform,
+                offset: 10,
+              ),
+              MigratedDeclarationReport(
+                path: 'lib/source.dart',
+                declarationKind: 'class',
+                declarationName: 'Primary',
+                transform: primaryConstructorTransform,
+                offset: 10,
+              ),
+              MigratedDeclarationReport(
+                path: 'lib/source.dart',
+                declarationKind: 'constructor',
+                declarationName: 'Primary.named',
+                transform: constructorShorthandTransform,
+                offset: 10,
+              ),
+            ],
+            skippedDeclarations: [
+              SkippedDeclarationReport(
+                path: 'lib/source.dart',
+                declarationKind: 'class',
+                declarationName: 'SkippedBody',
+                transform: emptyClassBodyTransform,
+                offset: 20,
+                reason: DeclarationSkipReason.fieldComment,
+              ),
+              SkippedDeclarationReport(
+                path: 'lib/source.dart',
+                declarationKind: 'class',
+                declarationName: 'SkippedPrimary',
+                transform: primaryConstructorTransform,
+                offset: 20,
+                reason: DeclarationSkipReason.fieldMetadata,
+              ),
+              SkippedDeclarationReport(
+                path: 'lib/source.dart',
+                declarationKind: 'constructor',
+                declarationName: 'SkippedPrimary.named',
+                transform: constructorShorthandTransform,
+                offset: 20,
+                reason: DeclarationSkipReason.constructorMetadata,
+              ),
+            ],
+            transformCounts: {
+              emptyClassBodyTransform: 1,
+              constructorShorthandTransform: 1,
+              primaryConstructorTransform: 1,
+            },
+            skipReasonCounts: {
+              DeclarationSkipReason.fieldComment: 1,
+              DeclarationSkipReason.fieldMetadata: 1,
+              DeclarationSkipReason.constructorMetadata: 1,
+            },
+          ),
+        );
+
+        final json = report.toJson();
+
+        expect(json['migratedDeclarations'], [
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Primary',
+            'transform': primaryConstructorTransform,
+            'offset': 10,
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Primary.named',
+            'transform': constructorShorthandTransform,
+            'offset': 10,
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Body',
+            'transform': emptyClassBodyTransform,
+            'offset': 10,
+          },
+        ]);
+        expect(json['skippedDeclarations'], [
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'SkippedPrimary',
+            'transform': primaryConstructorTransform,
+            'offset': 20,
+            'reason': 'fieldMetadata',
+            'message': 'Field metadata is not moved to declaring parameters.',
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'SkippedPrimary.named',
+            'transform': constructorShorthandTransform,
+            'offset': 20,
+            'reason': 'constructorMetadata',
+            'message':
+                'Constructor metadata is not moved to primary constructors.',
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'SkippedBody',
+            'transform': emptyClassBodyTransform,
+            'offset': 20,
+            'reason': 'fieldComment',
+            'message':
+                'Ambiguous field comments are not moved to declaring parameters.',
+          },
+        ]);
+        expect(json['transformCounts'], {
+          primaryConstructorTransform: 1,
+          constructorShorthandTransform: 1,
+          emptyClassBodyTransform: 1,
+        });
+        expect(json['skipReasonCounts'], {
+          'constructorMetadata': 1,
+          'fieldMetadata': 1,
+          'fieldComment': 1,
+        });
+      },
+    );
+
+    test('omits absent and zero V1 transform counts', () {
+      final report = MigrationReport.fromRun(
+        root: '/target',
+        mode: 'safe',
+        dryRun: true,
+        discovery: const TargetPackageFiles(
+          dartFiles: [],
+          skippedFiles: [],
+          skippedDirectories: [],
+        ),
+        migration: const MigrationRunResult(
+          changedFiles: [],
+          migratedDeclarations: [],
+          skippedDeclarations: [],
+          transformCounts: {
+            primaryConstructorTransform: 1,
+            constructorShorthandTransform: 0,
+          },
+          skipReasonCounts: {},
+        ),
+      );
+
+      expect(report.toJson()['transformCounts'], {
+        primaryConstructorTransform: 1,
+      });
+    });
+
     test('text output summarizes run facts and include-skipped details', () {
       const report = MigrationReport(
         root: '/target',

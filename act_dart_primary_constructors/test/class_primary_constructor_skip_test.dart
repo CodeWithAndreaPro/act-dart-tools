@@ -329,22 +329,66 @@ class PrivateFieldComment {
       );
     });
 
-    for (final scenario in [
-      (
-        name: 'named constructor',
-        declarationName: 'NamedConstructor',
-        reason: 'namedConstructor',
-        message: 'Named generative constructors are not supported.',
-        source: '''
-class NamedConstructor {
-  final String id;
+    test(
+      'rewrites constructors in a class skipped for an additional named constructor',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
+class AppDatabase extends _\$AppDatabase {
+  AppDatabase() : super(impl.connect());
 
-  NamedConstructor(this.id);
-
-  NamedConstructor.create(this.id);
+  AppDatabase.forTesting(super.e);
 }
-''',
-      ),
+''';
+        writeFile(root, 'lib/app_database.dart', originalSource);
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], ['lib/app_database.dart']);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/app_database.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'AppDatabase',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('AppDatabase()'),
+          },
+          {
+            'path': 'lib/app_database.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'AppDatabase.forTesting',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('AppDatabase.forTesting'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/app_database.dart',
+            'declarationKind': 'class',
+            'declarationName': 'AppDatabase',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+            'reason': 'namedConstructor',
+            'message': 'Named generative constructors are not supported.',
+          },
+        ]);
+        expect(decoded['transformCounts'], {'constructorShorthand': 2});
+        expect(decoded['skipReasonCounts'], {'namedConstructor': 1});
+        expect(await formattedFile(root, 'lib/app_database.dart'), '''
+class AppDatabase extends _\$AppDatabase {
+  new() : super(impl.connect());
+
+  new forTesting(super.e);
+}
+''');
+      },
+    );
+
+    for (final scenario in [
       (
         name: 'redirecting constructor',
         declarationName: 'RedirectingConstructor',

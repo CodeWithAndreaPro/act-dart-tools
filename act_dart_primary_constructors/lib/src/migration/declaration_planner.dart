@@ -43,17 +43,108 @@ class _TargetFileDeclarationPlanner {
   ) {
     final primaryConstructorPlan = _planClassPrimaryConstructor(declaration);
     final emptyClassBodyPlan = _planStandaloneEmptyClassBody(declaration);
+    final constructorShorthandPlan = _planConstructorShorthandIfNamedSkip(
+      declaration,
+      primaryConstructorPlan,
+    );
     return _DeclarationMigrationPlan(
-      edits: [...primaryConstructorPlan.edits, ...emptyClassBodyPlan.edits],
+      edits: [
+        ...primaryConstructorPlan.edits,
+        ...constructorShorthandPlan.edits,
+        ...emptyClassBodyPlan.edits,
+      ],
       migratedDeclarations: [
         ...primaryConstructorPlan.migratedDeclarations,
+        ...constructorShorthandPlan.migratedDeclarations,
         ...emptyClassBodyPlan.migratedDeclarations,
       ],
       skippedDeclarations: [
         ...primaryConstructorPlan.skippedDeclarations,
+        ...constructorShorthandPlan.skippedDeclarations,
         ...emptyClassBodyPlan.skippedDeclarations,
       ],
     );
+  }
+
+  _DeclarationMigrationPlan _planConstructorShorthandIfNamedSkip(
+    ClassDeclaration declaration,
+    _DeclarationMigrationPlan primaryConstructorPlan,
+  ) {
+    final skippedForNamedConstructor = primaryConstructorPlan
+        .skippedDeclarations
+        .any(
+          (skippedDeclaration) =>
+              skippedDeclaration.transform == primaryConstructorTransform &&
+              skippedDeclaration.reason ==
+                  DeclarationSkipReason.namedConstructor,
+        );
+    if (!skippedForNamedConstructor) {
+      return const _DeclarationMigrationPlan();
+    }
+
+    final edits = <SourceEdit>[];
+    final migratedDeclarations = <MigratedDeclarationReport>[];
+    for (final constructor
+        in declaration.body.members.whereType<ConstructorDeclaration>()) {
+      final rewrite = _constructorShorthandRewrite(constructor);
+      if (rewrite == null) {
+        continue;
+      }
+      edits.add(rewrite);
+      migratedDeclarations.add(
+        MigratedDeclarationReport(
+          path: targetFile.relativePath,
+          declarationKind: 'constructor',
+          declarationName: _constructorReportName(declaration, constructor),
+          transform: constructorShorthandTransform,
+          offset: constructor.offset,
+        ),
+      );
+    }
+
+    return _DeclarationMigrationPlan(
+      edits: edits,
+      migratedDeclarations: migratedDeclarations,
+    );
+  }
+
+  SourceEdit? _constructorShorthandRewrite(ConstructorDeclaration constructor) {
+    final typeName = constructor.typeName;
+    if (constructor.factoryKeyword != null ||
+        constructor.externalKeyword != null ||
+        constructor.newKeyword != null ||
+        typeName == null ||
+        constructor.metadata.isNotEmpty ||
+        constructor.documentationComment != null ||
+        constructor.redirectedConstructor != null ||
+        constructor.parameters.parameters.any(
+          (parameter) => parameter.metadata.isNotEmpty,
+        ) ||
+        constructor.initializers
+            .whereType<RedirectingConstructorInvocation>()
+            .isNotEmpty) {
+      return null;
+    }
+
+    final name = constructor.name;
+    final replacement = name == null ? 'new' : 'new ';
+    final range = SourceRange.fromStartEnd(
+      start: typeName.offset,
+      end: name?.offset ?? typeName.end,
+    );
+    return SourceEdit.replace(range, replacement);
+  }
+
+  String _constructorReportName(
+    ClassDeclaration declaration,
+    ConstructorDeclaration constructor,
+  ) {
+    final className = declaration.namePart.typeName.lexeme;
+    final constructorName = constructor.name?.lexeme;
+    if (constructorName == null) {
+      return className;
+    }
+    return '$className.$constructorName';
   }
 
   _DeclarationMigrationPlan _planStandaloneEmptyClassBody(

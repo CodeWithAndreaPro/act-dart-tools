@@ -4,17 +4,15 @@ class _TargetFileDeclarationPlanner {
   const _TargetFileDeclarationPlanner({
     required this.targetFile,
     required this.source,
+    required this.parseSource,
   });
 
   final TargetDartFile targetFile;
   final String source;
+  final ParseTargetDartSource parseSource;
 
   _PlannedFileMigration? plan() {
-    final parseResult = _parseSource(
-      source,
-      path: targetFile.file.path,
-      input: true,
-    );
+    final parseResult = parseSource(source, path: targetFile.path, input: true);
     final filePlanBuilder = _TargetFileMigrationPlanBuilder(
       targetFile: targetFile,
       source: source,

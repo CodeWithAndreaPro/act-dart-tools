@@ -24,10 +24,10 @@ class TargetPackageFiles {
 }
 
 class TargetDartFile {
-  const TargetDartFile({required this.relativePath, required this.file});
+  const TargetDartFile({required this.relativePath, required this.path});
 
   final String relativePath;
-  final io.File file;
+  final String path;
 }
 
 class SkippedDartFile {
@@ -82,7 +82,7 @@ TargetPackageFiles discoverTargetPackageFiles(io.Directory root) {
           );
         } else {
           dartFiles.add(
-            TargetDartFile(relativePath: relativePath, file: entry),
+            TargetDartFile(relativePath: relativePath, path: entry.path),
           );
         }
       }

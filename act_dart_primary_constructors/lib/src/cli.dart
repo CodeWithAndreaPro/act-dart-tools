@@ -2,10 +2,9 @@ import 'dart:io' as io;
 
 import 'package:args/args.dart';
 
-import 'discovery.dart';
 import 'exit_codes.dart';
-import 'migration.dart';
 import 'report.dart';
+import 'target_package_run.dart';
 import 'version.dart';
 
 Future<int> runDartPrimaryConstructors(
@@ -75,90 +74,31 @@ Future<int> _runMigrate(
     );
   }
 
-  final rootOption = results.option('root');
-  final rootValidation = _validateRoot(rootOption);
-  if (rootValidation == null) {
-    return _writeError(
-      CliErrorReport(
-        code: 'invalidRoot',
-        message: _invalidRootMessage(rootOption),
-      ),
-      exitInvalidRoot,
-      json: results.flag('json'),
-      stdout: stdout,
-      stderr: stderr,
-    );
-  }
-
-  final discovery = discoverTargetPackageFiles(io.Directory(rootValidation));
-  late final MigrationRunResult migration;
-  try {
-    migration = migrateTargetPackageFiles(
-      files: discovery.dartFiles,
+  final outcome = TargetPackageRunner().run(
+    TargetPackageRunRequest(
+      root: results.option('root'),
+      mode: results.option('mode') ?? 'safe',
       dryRun: results.flag('dry-run'),
-    );
-  } on MigrationFailure catch (error) {
+    ),
+  );
+  if (outcome.report case final report?) {
+    if (results.flag('json')) {
+      stdout.writeln(report.toJsonString());
+    } else {
+      stdout.write(
+        report.toTextString(includeSkipped: results.flag('include-skipped')),
+      );
+    }
+  } else if (outcome.error case final error?) {
     return _writeError(
-      CliErrorReport(
-        code: error.isInputParseFailure ? 'parseFailure' : 'validationFailure',
-        message: error.message,
-      ),
-      error.isInputParseFailure ? exitParseFailure : exitValidationFailure,
+      error,
+      outcome.exitCode,
       json: results.flag('json'),
       stdout: stdout,
       stderr: stderr,
     );
   }
-
-  final report = MigrationReport.fromRun(
-    root: rootValidation,
-    mode: results.option('mode') ?? 'safe',
-    dryRun: results.flag('dry-run'),
-    discovery: discovery,
-    migration: migration,
-  );
-
-  if (results.flag('json')) {
-    stdout.writeln(report.toJsonString());
-  } else {
-    stdout.write(
-      report.toTextString(includeSkipped: results.flag('include-skipped')),
-    );
-  }
-  return exitSuccess;
-}
-
-String? _validateRoot(String? root) {
-  if (root == null || root.isEmpty) {
-    return null;
-  }
-  final directory = io.Directory(root);
-  if (!directory.existsSync()) {
-    return null;
-  }
-  final packageConfig = io.File(
-    '${directory.path}${io.Platform.pathSeparator}pubspec.yaml',
-  );
-  if (!packageConfig.existsSync()) {
-    return null;
-  }
-  return _reportRootPath(directory);
-}
-
-String _reportRootPath(io.Directory directory) {
-  final path = directory.absolute.uri.normalizePath().toFilePath();
-  final separator = io.Platform.pathSeparator;
-  if (path.length > separator.length && path.endsWith(separator)) {
-    return path.substring(0, path.length - separator.length);
-  }
-  return path;
-}
-
-String _invalidRootMessage(String? root) {
-  if (root == null || root.isEmpty) {
-    return 'A target package root is required.';
-  }
-  return 'Target package root does not exist or has no pubspec.yaml: $root';
+  return outcome.exitCode;
 }
 
 int _writeError(

@@ -1,27 +1,57 @@
 part of '../migration.dart';
 
+typedef ReadTargetDartFile = String Function(TargetDartFile file);
+
+typedef WriteTargetDartFile = void Function(TargetDartFile file, String source);
+
+typedef ParseTargetDartSource =
+    ParseStringResult Function(
+      String source, {
+      required String path,
+      required bool input,
+    });
+
 MigrationRunResult migrateTargetPackageFiles({
   required List<TargetDartFile> files,
   required bool dryRun,
+  required ReadTargetDartFile readFile,
+  required WriteTargetDartFile writeFile,
+  ParseTargetDartSource? parseSource,
 }) {
-  return _MigrationEngine(files: files, dryRun: dryRun).run();
+  return _MigrationEngine(
+    files: files,
+    dryRun: dryRun,
+    readFile: readFile,
+    writeFile: writeFile,
+    parseSource: parseSource ?? parseTargetDartSource,
+  ).run();
 }
 
 class _MigrationEngine {
-  _MigrationEngine({required this.files, required this.dryRun});
+  _MigrationEngine({
+    required this.files,
+    required this.dryRun,
+    required this.readFile,
+    required this.writeFile,
+    required this.parseSource,
+  });
 
   final List<TargetDartFile> files;
   final bool dryRun;
+  final ReadTargetDartFile readFile;
+  final WriteTargetDartFile writeFile;
+  final ParseTargetDartSource parseSource;
 
   MigrationRunResult run() {
     final report = _MigrationReportAccumulator();
     final plannedFiles = <_PlannedFileMigration>[];
 
     for (final targetFile in files) {
-      final source = targetFile.file.readAsStringSync();
+      final source = readFile(targetFile);
       final plan = _TargetFileDeclarationPlanner(
         targetFile: targetFile,
         source: source,
+        parseSource: parseSource,
       ).plan();
       if (plan == null) {
         continue;
@@ -43,9 +73,9 @@ class _MigrationEngine {
 
   void _validateTransformedSources(List<_PlannedFileMigration> plannedFiles) {
     for (final plan in plannedFiles) {
-      _parseSource(
+      parseSource(
         plan.transformedSource,
-        path: plan.targetFile.file.path,
+        path: plan.targetFile.path,
         input: false,
       );
     }
@@ -53,7 +83,7 @@ class _MigrationEngine {
 
   void _writePlannedFiles(List<_PlannedFileMigration> plannedFiles) {
     for (final plan in plannedFiles) {
-      plan.targetFile.file.writeAsStringSync(plan.transformedSource);
+      writeFile(plan.targetFile, plan.transformedSource);
     }
   }
 }
@@ -102,7 +132,7 @@ class _MigrationReportAccumulator {
   }
 }
 
-ParseStringResult _parseSource(
+ParseStringResult parseTargetDartSource(
   String source, {
   required String path,
   required bool input,

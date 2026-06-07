@@ -398,7 +398,7 @@ class AddInvestmentChoice {
 ''');
     });
 
-    test('keeps constructor shorthand safety exclusions unchanged', () async {
+    test('reports constructor shorthand safety exclusions precisely', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
       const originalSource = '''
@@ -435,9 +435,55 @@ class ShorthandSafety {
           'offset': originalSource.indexOf('ShorthandSafety.eligible'),
         },
       ]);
-      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['skippedDeclarations'], [
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'ShorthandSafety.externalConstructor',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf(
+            'external ShorthandSafety.externalConstructor',
+          ),
+          'reason': 'externalConstructor',
+          'message': 'External constructors are not supported.',
+        },
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'ShorthandSafety.metadataConstructor',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('@deprecated'),
+          'reason': 'constructorMetadata',
+          'message':
+              'Constructor metadata is not moved to primary constructors.',
+        },
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'ShorthandSafety.commentedConstructor',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('/// Constructor comment.'),
+          'reason': 'constructorComment',
+          'message':
+              'Constructor comments are not moved to primary constructors.',
+        },
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'ShorthandSafety.parameterMetadata',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('ShorthandSafety.parameterMetadata'),
+          'reason': 'parameterMetadata',
+          'message': 'Parameter metadata is not moved to declaring parameters.',
+        },
+      ]);
       expect(decoded['transformCounts'], {'constructorShorthand': 1});
-      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(decoded['skipReasonCounts'], {
+        'externalConstructor': 1,
+        'constructorMetadata': 1,
+        'constructorComment': 1,
+        'parameterMetadata': 1,
+      });
       expect(await formattedFile(root, 'lib/shorthand_safety.dart'), '''
 class ShorthandSafety {
   new eligible();
@@ -907,10 +953,6 @@ class Child extends Parent {
   final String id;
 
   Child(this.id) : super.named();
-}
-
-class Parent {
-  external Parent.named();
 }
 ''';
 

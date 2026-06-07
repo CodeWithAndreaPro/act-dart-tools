@@ -80,7 +80,8 @@ class _ClassPrimaryConstructorPlanner {
       (constructor) =>
           constructor.externalKeyword == null &&
           constructor != unnamedConstructors.single &&
-          !_isUnnamedConstructor(constructor),
+          !_isUnnamedConstructor(constructor) &&
+          !_isRedirectingConstructor(constructor),
     )) {
       return const _SkippedClassPrimaryConstructor(
         DeclarationSkipReason.namedConstructor,
@@ -184,4 +185,11 @@ final class _NoOpClassPrimaryConstructor
 
 bool _isUnnamedConstructor(ConstructorDeclaration constructor) {
   return constructor.name == null && constructor.period == null;
+}
+
+bool _isRedirectingConstructor(ConstructorDeclaration constructor) {
+  return constructor.redirectedConstructor != null ||
+      constructor.initializers.any(
+        (initializer) => initializer is RedirectingConstructorInvocation,
+      );
 }

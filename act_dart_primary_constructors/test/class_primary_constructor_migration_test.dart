@@ -817,6 +817,58 @@ class Checked(final String id) {
     });
 
     test(
+      'rewrites retained redirecting constructors after primary migration',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
+class Pair {
+  final int value;
+
+  Pair(this.value);
+
+  Pair.zero() : this(0);
+}
+''';
+        writeFile(root, 'lib/pair.dart', originalSource);
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], ['lib/pair.dart']);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/pair.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Pair',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+          },
+          {
+            'path': 'lib/pair.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Pair.zero',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('Pair.zero'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], isEmpty);
+        expect(decoded['transformCounts'], {
+          'primaryConstructor': 1,
+          'constructorShorthand': 1,
+        });
+        expect(decoded['skipReasonCounts'], isEmpty);
+        expect(await formattedFile(root, 'lib/pair.dart'), '''
+class Pair(final int value) {
+  new zero() : this(0);
+}
+''');
+      },
+    );
+
+    test(
       'retains unnamed super initializers in primary constructor body',
       () async {
         final root = await createPackageRoot();

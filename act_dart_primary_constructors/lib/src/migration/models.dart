@@ -42,6 +42,25 @@ class _ClassBodyRewritePlan {
   ];
 }
 
+class _EnumMigrationPlan {
+  const _EnumMigrationPlan({
+    required this.edits,
+    required this.migratedDeclaration,
+  });
+
+  final List<SourceEdit> edits;
+  final MigratedDeclarationReport migratedDeclaration;
+
+  List<SourceEdit> get sourceEdits => edits;
+}
+
+class _DeclarationBodyInfo {
+  const _DeclarationBodyInfo({required this.members, required this.bodyEnd});
+
+  final NodeList<ClassMember> members;
+  final int bodyEnd;
+}
+
 class _EmptyClassBodyRewriteIntent {
   const _EmptyClassBodyRewriteIntent({required this.declaration});
 

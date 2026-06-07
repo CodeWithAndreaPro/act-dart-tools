@@ -34,6 +34,9 @@ class _TargetFileDeclarationPlanner {
     if (declaration is ClassDeclaration) {
       return _planClassDeclaration(declaration);
     }
+    if (declaration is EnumDeclaration) {
+      return _planEnumDeclaration(declaration);
+    }
     return const _DeclarationMigrationPlan();
   }
 
@@ -71,6 +74,34 @@ class _TargetFileDeclarationPlanner {
           ],
         ),
       _NoOpClassPrimaryConstructor() => const _DeclarationMigrationPlan(),
+    };
+  }
+
+  _DeclarationMigrationPlan _planEnumDeclaration(EnumDeclaration declaration) {
+    final enumPlanner = _EnumPrimaryConstructorPlanner(
+      source: source,
+      targetFile: targetFile,
+      declaration: declaration,
+    );
+    return switch (enumPlanner.decide()) {
+      _MigratedEnumPrimaryConstructor(:final plan) => _DeclarationMigrationPlan(
+        edits: plan.sourceEdits,
+        migratedDeclarations: [plan.migratedDeclaration],
+      ),
+      _SkippedEnumPrimaryConstructor(:final reason) =>
+        _DeclarationMigrationPlan(
+          skippedDeclarations: [
+            SkippedDeclarationReport(
+              path: targetFile.relativePath,
+              declarationKind: 'enum',
+              declarationName: declaration.namePart.typeName.lexeme,
+              transform: primaryConstructorTransform,
+              offset: declaration.offset,
+              reason: reason,
+            ),
+          ],
+        ),
+      _NoOpEnumPrimaryConstructor() => const _DeclarationMigrationPlan(),
     };
   }
 }

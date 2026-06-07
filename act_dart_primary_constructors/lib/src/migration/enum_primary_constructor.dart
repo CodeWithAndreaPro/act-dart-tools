@@ -1,7 +1,7 @@
 part of '../migration.dart';
 
-class _ClassPrimaryConstructorPlanner {
-  const _ClassPrimaryConstructorPlanner({
+final class _EnumPrimaryConstructorPlanner {
+  const _EnumPrimaryConstructorPlanner({
     required this.source,
     required this.targetFile,
     required this.declaration,
@@ -9,63 +9,65 @@ class _ClassPrimaryConstructorPlanner {
 
   final String source;
   final TargetDartFile targetFile;
-  final ClassDeclaration declaration;
+  final EnumDeclaration declaration;
 
-  _ClassPrimaryConstructorDecision decide() {
+  _EnumPrimaryConstructorDecision decide() {
     if (declaration.namePart is PrimaryConstructorDeclaration) {
-      return const _NoOpClassPrimaryConstructor();
+      return const _NoOpEnumPrimaryConstructor();
     }
 
     final constructors = declaration.body.members
         .whereType<ConstructorDeclaration>()
         .toList();
     if (constructors.isEmpty) {
-      return const _NoOpClassPrimaryConstructor();
+      return const _NoOpEnumPrimaryConstructor();
     }
 
     final generativeConstructors = constructors
         .where((constructor) => constructor.factoryKeyword == null)
         .toList();
     if (generativeConstructors.isEmpty) {
-      return const _NoOpClassPrimaryConstructor();
+      return const _NoOpEnumPrimaryConstructor();
     }
 
     final unnamedConstructors = generativeConstructors
         .where(_isUnnamedConstructor)
         .toList();
     if (unnamedConstructors.isEmpty) {
-      return const _NoOpClassPrimaryConstructor();
+      return const _NoOpEnumPrimaryConstructor();
     }
     if (unnamedConstructors.length > 1) {
-      return const _SkippedClassPrimaryConstructor(
+      return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.multipleConstructors,
       );
     }
 
     final constructor = unnamedConstructors.single;
     if (constructor.externalKeyword != null) {
-      return const _SkippedClassPrimaryConstructor(
+      return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.externalConstructor,
       );
     }
     if (constructor.metadata.isNotEmpty) {
-      return const _SkippedClassPrimaryConstructor(
+      return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.constructorMetadata,
       );
     }
     if (constructor.documentationComment != null) {
-      return const _SkippedClassPrimaryConstructor(
+      return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.constructorComment,
       );
     }
     if (constructor.redirectedConstructor != null) {
-      return const _SkippedClassPrimaryConstructor(
+      return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.redirectingConstructor,
       );
     }
+
+    final bodyInfo = _enumBodyInfo(declaration);
     final realizationDecision = _ConstructorRealizationPlanner(
       source: source,
-      bodyInfo: _classBodyInfo(declaration),
+      bodyInfo: bodyInfo,
       constructor: constructor,
     ).decide();
     final _ConstructorRealizationPlan realizationPlan;
@@ -73,7 +75,7 @@ class _ClassPrimaryConstructorPlanner {
       case _PlannedConstructorRealization(:final plan):
         realizationPlan = plan;
       case _SkippedConstructorRealization(:final reason):
-        return _SkippedClassPrimaryConstructor(reason);
+        return _SkippedEnumPrimaryConstructor(reason);
     }
 
     if (generativeConstructors.any(
@@ -82,19 +84,12 @@ class _ClassPrimaryConstructorPlanner {
           constructor != unnamedConstructors.single &&
           !_isUnnamedConstructor(constructor),
     )) {
-      return const _SkippedClassPrimaryConstructor(
+      return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.namedConstructor,
       );
     }
-    if (constructor.parameters.parameters.isEmpty &&
-        constructor.constKeyword == null &&
-        declaration.body.members.length != 1) {
-      return const _SkippedClassPrimaryConstructor(
-        DeclarationSkipReason.emptyNonConstConstructorWithMembers,
-      );
-    }
 
-    return _MigratedClassPrimaryConstructor(
+    return _MigratedEnumPrimaryConstructor(
       _buildMigrationPlan(
         constructor: constructor,
         realizationPlan: realizationPlan,
@@ -102,82 +97,90 @@ class _ClassPrimaryConstructorPlanner {
     );
   }
 
-  _ClassMigrationPlan _buildMigrationPlan({
+  _EnumMigrationPlan _buildMigrationPlan({
     required ConstructorDeclaration constructor,
     required _ConstructorRealizationPlan realizationPlan,
   }) {
-    final constructorParameters = constructor.parameters.parameters;
-    final parameterEdits = <SourceEdit>[];
-    final primaryBodyRequired = realizationPlan.primaryBodyRequired;
-    final removableMembers = <ClassMember>{
-      if (!primaryBodyRequired) constructor,
-    };
     final parametersRange = _rangeFor(constructor.parameters);
+    final parameterEdits = <SourceEdit>[];
+    final removableMembers = <ClassMember>{
+      if (!realizationPlan.primaryBodyRequired) constructor,
+    };
 
     for (final parameterPlan in realizationPlan.parameterPlans) {
       parameterEdits.addAll(parameterPlan.edits);
       removableMembers.addAll(parameterPlan.removableFields);
     }
 
-    final primaryParameters =
-        constructorParameters.isEmpty && constructor.constKeyword == null
-        ? null
-        : applySourceEditsInRange(source, parametersRange, parameterEdits);
+    final primaryParameters = applySourceEditsInRange(
+      source,
+      parametersRange,
+      parameterEdits,
+    );
     final edits = <SourceEdit>[
-      if (constructor.constKeyword != null)
-        SourceEdit.insert(declaration.classKeyword.end, ' const'),
-      if (primaryParameters != null)
-        SourceEdit.insert(declaration.namePart.end, primaryParameters),
+      SourceEdit.insert(declaration.namePart.end, primaryParameters),
       ...realizationPlan.fieldInitializerEdits,
+      ..._enumBodyEdits(
+        constructor: constructor,
+        removableMembers: removableMembers,
+        primaryBodySource: realizationPlan.primaryBodySource,
+      ),
     ];
-    final bodyRewritePlan =
-        _ClassBodyRewritePlanner(
-          source: source,
-          declaration: declaration,
-          constructor: constructor,
-        ).plan(
-          removableMembers: removableMembers,
-          primaryBodySource: realizationPlan.primaryBodySource,
-        );
-    edits.addAll(bodyRewritePlan.edits);
 
-    return _ClassMigrationPlan(
+    validateSourceEdits(source, edits);
+    return _EnumMigrationPlan(
       edits: edits,
-      emptyClassBodyRewrite: bodyRewritePlan.emptyClassBodyRewrite,
       migratedDeclaration: MigratedDeclarationReport(
         path: targetFile.relativePath,
-        declarationKind: 'class',
+        declarationKind: 'enum',
         declarationName: declaration.namePart.typeName.lexeme,
         transform: primaryConstructorTransform,
         offset: declaration.offset,
       ),
     );
   }
+
+  List<SourceEdit> _enumBodyEdits({
+    required ConstructorDeclaration constructor,
+    required Set<ClassMember> removableMembers,
+    required String? primaryBodySource,
+  }) {
+    final removalRanges = [
+      for (final member in removableMembers)
+        _memberRemovalRange(source, member),
+    ];
+    final edits = [
+      for (final range in removalRanges) SourceEdit.delete(range),
+      if (primaryBodySource != null)
+        SourceEdit.replace(
+          _memberRemovalRange(source, constructor),
+          primaryBodySource,
+        ),
+    ];
+    validateSourceEdits(source, edits);
+    return edits;
+  }
 }
 
-sealed class _ClassPrimaryConstructorDecision {
-  const _ClassPrimaryConstructorDecision();
+sealed class _EnumPrimaryConstructorDecision {
+  const _EnumPrimaryConstructorDecision();
 }
 
-final class _MigratedClassPrimaryConstructor
-    extends _ClassPrimaryConstructorDecision {
-  const _MigratedClassPrimaryConstructor(this.plan);
+final class _MigratedEnumPrimaryConstructor
+    extends _EnumPrimaryConstructorDecision {
+  const _MigratedEnumPrimaryConstructor(this.plan);
 
-  final _ClassMigrationPlan plan;
+  final _EnumMigrationPlan plan;
 }
 
-final class _SkippedClassPrimaryConstructor
-    extends _ClassPrimaryConstructorDecision {
-  const _SkippedClassPrimaryConstructor(this.reason);
+final class _SkippedEnumPrimaryConstructor
+    extends _EnumPrimaryConstructorDecision {
+  const _SkippedEnumPrimaryConstructor(this.reason);
 
   final DeclarationSkipReason reason;
 }
 
-final class _NoOpClassPrimaryConstructor
-    extends _ClassPrimaryConstructorDecision {
-  const _NoOpClassPrimaryConstructor();
-}
-
-bool _isUnnamedConstructor(ConstructorDeclaration constructor) {
-  return constructor.name == null && constructor.period == null;
+final class _NoOpEnumPrimaryConstructor
+    extends _EnumPrimaryConstructorDecision {
+  const _NoOpEnumPrimaryConstructor();
 }

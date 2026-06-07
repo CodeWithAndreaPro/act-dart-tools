@@ -3,12 +3,12 @@ part of '../migration.dart';
 final class _FieldToParameterPlanner {
   _FieldToParameterPlanner({
     required this.source,
-    required this.declaration,
+    required this.bodyInfo,
     required this.privateFieldInitializersByName,
   });
 
   final String source;
-  final ClassDeclaration declaration;
+  final _DeclarationBodyInfo bodyInfo;
   final Map<String, String> privateFieldInitializersByName;
   final Set<String> _usedFieldNames = <String>{};
   final Set<String> _usedPrivateInitializers = <String>{};
@@ -190,7 +190,7 @@ final class _FieldToParameterPlanner {
   _FieldToParameterFieldClassification _classifyMappedField(String fieldName) {
     return _classifyFieldToParameterField(
       source: source,
-      declaration: declaration,
+      bodyInfo: bodyInfo,
       fieldName: fieldName,
     );
   }
@@ -230,22 +230,22 @@ final class _SkippedConstructorParameter extends _ConstructorParameterDecision {
 
 DeclarationSkipReason? _mappedFieldSkipReason({
   required String source,
-  required ClassDeclaration declaration,
+  required _DeclarationBodyInfo bodyInfo,
   required String fieldName,
 }) {
   return _classifyFieldToParameterField(
     source: source,
-    declaration: declaration,
+    bodyInfo: bodyInfo,
     fieldName: fieldName,
   ).skipReason;
 }
 
 _FieldToParameterFieldClassification _classifyFieldToParameterField({
   required String source,
-  required ClassDeclaration declaration,
+  required _DeclarationBodyInfo bodyInfo,
   required String fieldName,
 }) {
-  final field = _fieldDeclarationFor(declaration, fieldName);
+  final field = _fieldDeclarationFor(bodyInfo, fieldName);
   if (field == null) {
     return const _FieldToParameterFieldClassification.skip(
       DeclarationSkipReason.missingField,
@@ -283,7 +283,7 @@ _FieldToParameterFieldClassification _classifyFieldToParameterField({
 
   final commentMigration = _fieldCommentMigration(
     source: source,
-    declaration: declaration,
+    bodyInfo: bodyInfo,
     member: member,
   );
   if (commentMigration.isAmbiguous) {
@@ -345,8 +345,8 @@ class _FieldToParameterField {
 }
 
 (FieldDeclaration, VariableDeclarationList, VariableDeclaration)?
-_fieldDeclarationFor(ClassDeclaration declaration, String fieldName) {
-  for (final member in declaration.body.members.whereType<FieldDeclaration>()) {
+_fieldDeclarationFor(_DeclarationBodyInfo bodyInfo, String fieldName) {
+  for (final member in bodyInfo.members.whereType<FieldDeclaration>()) {
     for (final variable in member.fields.variables) {
       if (variable.name.lexeme == fieldName) {
         return (member, member.fields, variable);

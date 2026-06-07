@@ -3,18 +3,18 @@ part of '../migration.dart';
 final class _ConstructorRealizationPlanner {
   const _ConstructorRealizationPlanner({
     required this.source,
-    required this.declaration,
+    required this.bodyInfo,
     required this.constructor,
   });
 
   final String source;
-  final ClassDeclaration declaration;
+  final _DeclarationBodyInfo bodyInfo;
   final ConstructorDeclaration constructor;
 
   _ConstructorRealizationDecision decide() {
     final initializationDecision = _ConstructorInitializationPlanner(
       source: source,
-      declaration: declaration,
+      bodyInfo: bodyInfo,
       constructor: constructor,
     ).decide();
     final _ConstructorInitializationPlan initializationPlan;
@@ -28,7 +28,7 @@ final class _ConstructorRealizationPlanner {
     final fieldToParameterDecision =
         _FieldToParameterPlanner(
           source: source,
-          declaration: declaration,
+          bodyInfo: bodyInfo,
           privateFieldInitializersByName:
               initializationPlan.privateFieldInitializersByName,
         ).decideConstructorParameters(
@@ -82,12 +82,12 @@ final class _SkippedConstructorRealization
 final class _ConstructorInitializationPlanner {
   const _ConstructorInitializationPlanner({
     required this.source,
-    required this.declaration,
+    required this.bodyInfo,
     required this.constructor,
   });
 
   final String source;
-  final ClassDeclaration declaration;
+  final _DeclarationBodyInfo bodyInfo;
   final ConstructorDeclaration constructor;
 
   _ConstructorInitializationDecision decide() {
@@ -141,7 +141,7 @@ final class _ConstructorInitializationPlanner {
 
       final fieldSkipReason = _mappedFieldSkipReason(
         source: source,
-        declaration: declaration,
+        bodyInfo: bodyInfo,
         fieldName: fieldName,
       );
       if (fieldSkipReason != null) {
@@ -157,7 +157,7 @@ final class _ConstructorInitializationPlanner {
           DeclarationSkipReason.unsupportedInitializer,
         );
       }
-      final field = _fieldDeclarationFor(declaration, fieldName);
+      final field = _fieldDeclarationFor(bodyInfo, fieldName);
       if (field == null) {
         return const _SkippedConstructorInitialization(
           DeclarationSkipReason.missingField,
@@ -200,8 +200,7 @@ final class _ConstructorInitializationPlanner {
 
   bool _bodyWritesInstanceField(BlockFunctionBody body) {
     final fieldNames = {
-      for (final member
-          in declaration.body.members.whereType<FieldDeclaration>())
+      for (final member in bodyInfo.members.whereType<FieldDeclaration>())
         if (!member.isStatic)
           for (final variable in member.fields.variables) variable.name.lexeme,
     };

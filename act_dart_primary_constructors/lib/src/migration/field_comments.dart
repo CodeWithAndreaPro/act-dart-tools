@@ -2,10 +2,10 @@ part of '../migration.dart';
 
 _FieldCommentMigration _fieldCommentMigration({
   required String source,
-  required ClassDeclaration declaration,
+  required _DeclarationBodyInfo bodyInfo,
   required FieldDeclaration member,
 }) {
-  if (_hasFollowingFieldComment(source, declaration, member)) {
+  if (_hasFollowingFieldComment(source, bodyInfo, member)) {
     return const _FieldCommentMigration.ambiguous();
   }
 
@@ -34,7 +34,7 @@ _FieldCommentMigration _fieldCommentMigration({
   }
 
   if (!_isOrdinaryCommentCluster(comments) ||
-      _isSharedOrdinaryFieldComment(source, declaration, member)) {
+      _isSharedOrdinaryFieldComment(source, bodyInfo, member)) {
     return const _FieldCommentMigration.ambiguous();
   }
   return _FieldCommentMigration.direct(
@@ -114,10 +114,10 @@ bool _isOrdinaryCommentCluster(List<Token> comments) {
 
 bool _isSharedOrdinaryFieldComment(
   String source,
-  ClassDeclaration declaration,
+  _DeclarationBodyInfo bodyInfo,
   FieldDeclaration member,
 ) {
-  final nextMember = _nextClassMember(declaration, member);
+  final nextMember = _nextBodyMember(bodyInfo, member);
   if (nextMember is! FieldDeclaration ||
       _hasBlankLineBetween(source, member.end, nextMember.offset)) {
     return false;
@@ -133,7 +133,7 @@ bool _isSharedOrdinaryFieldComment(
 
 bool _hasFollowingFieldComment(
   String source,
-  ClassDeclaration declaration,
+  _DeclarationBodyInfo bodyInfo,
   FieldDeclaration member,
 ) {
   final lineEnd = _lineEndOffset(source, member.end);
@@ -141,9 +141,9 @@ bool _hasFollowingFieldComment(
     return true;
   }
 
-  final nextMember = _nextClassMember(declaration, member);
+  final nextMember = _nextBodyMember(bodyInfo, member);
   final nextOffset = nextMember == null
-      ? declaration.body.end
+      ? bodyInfo.bodyEnd
       : _memberLeadingCommentOffset(nextMember);
   if (_hasCommentMarker(source.substring(lineEnd, nextOffset))) {
     return true;
@@ -185,11 +185,11 @@ bool _hasBlankLineBetween(String source, int start, int end) {
   return RegExp(r'\n[ \t\r]*\n').hasMatch(source.substring(start, end));
 }
 
-ClassMember? _nextClassMember(
-  ClassDeclaration declaration,
+ClassMember? _nextBodyMember(
+  _DeclarationBodyInfo bodyInfo,
   ClassMember member,
 ) {
-  final members = declaration.body.members;
+  final members = bodyInfo.members;
   for (var index = 0; index < members.length - 1; index++) {
     if (identical(members[index], member)) {
       return members[index + 1];

@@ -43,6 +43,7 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
   ProcessResult result, {
   required String path,
   required String declarationName,
+  String declarationKind = 'class',
 }) {
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);
@@ -51,7 +52,7 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
   expect(decoded['migratedDeclarations'], [
     {
       'path': path,
-      'declarationKind': 'class',
+      'declarationKind': declarationKind,
       'declarationName': declarationName,
       'transform': 'primaryConstructor',
       'offset': 0,
@@ -67,6 +68,7 @@ Future<Map<String, Object?>> expectSinglePrimaryConstructorSkip({
   required String declarationName,
   required String reason,
   required String message,
+  String declarationKind = 'class',
 }) async {
   final root = await createPackageRoot();
   addTearDown(() => root.deleteSync(recursive: true));
@@ -83,7 +85,7 @@ Future<Map<String, Object?>> expectSinglePrimaryConstructorSkip({
   expect(decoded['skippedDeclarations'], [
     {
       'path': relativePath,
-      'declarationKind': 'class',
+      'declarationKind': declarationKind,
       'declarationName': declarationName,
       'transform': 'primaryConstructor',
       'offset': 0,

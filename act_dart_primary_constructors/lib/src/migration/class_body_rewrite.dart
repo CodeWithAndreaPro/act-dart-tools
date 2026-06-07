@@ -19,6 +19,10 @@ final class _ClassBodyRewritePlanner {
       for (final member in removableMembers)
         _memberRemovalRange(source, member),
     ];
+    final primaryBodyReplacementSource =
+        primaryBodySource != null && _hasBodyMemberAfter(constructor)
+        ? '$primaryBodySource\n'
+        : primaryBodySource;
     validateSourceEdits(source, [
       for (final range in removalRanges) SourceEdit.delete(range),
     ]);
@@ -44,10 +48,10 @@ final class _ClassBodyRewritePlanner {
       plan = _ClassBodyRewritePlan(
         edits: [
           for (final range in removalRanges) SourceEdit.delete(range),
-          if (primaryBodySource != null)
+          if (primaryBodyReplacementSource != null)
             SourceEdit.replace(
               _memberRemovalRange(source, constructor),
-              primaryBodySource,
+              primaryBodyReplacementSource,
             ),
         ],
       );
@@ -59,6 +63,16 @@ final class _ClassBodyRewritePlanner {
   bool _allBodyMembersAreRemoved(Set<ClassMember> removableMembers) {
     return declaration.body.members.length == removableMembers.length &&
         declaration.body.members.every(removableMembers.contains);
+  }
+
+  bool _hasBodyMemberAfter(ClassMember member) {
+    final members = declaration.body.members;
+    for (var index = 0; index < members.length - 1; index++) {
+      if (identical(members[index], member)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _bodyContainsOnlyRemovedMemberSource(List<SourceRange> removalRanges) {

@@ -88,7 +88,8 @@ class _ClassPrimaryConstructorPlanner {
     }
     if (constructor.parameters.parameters.isEmpty &&
         constructor.constKeyword == null &&
-        declaration.body.members.length != 1) {
+        declaration.body.members.length != 1 &&
+        !realizationPlan.primaryBodyRequired) {
       return const _SkippedClassPrimaryConstructor(
         DeclarationSkipReason.emptyNonConstConstructorWithMembers,
       );
@@ -120,7 +121,9 @@ class _ClassPrimaryConstructorPlanner {
     }
 
     final primaryParameters =
-        constructorParameters.isEmpty && constructor.constKeyword == null
+        constructorParameters.isEmpty &&
+            constructor.constKeyword == null &&
+            !primaryBodyRequired
         ? null
         : applySourceEditsInRange(source, parametersRange, parameterEdits);
     final edits = <SourceEdit>[

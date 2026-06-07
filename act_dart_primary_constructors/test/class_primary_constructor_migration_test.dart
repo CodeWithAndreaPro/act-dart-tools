@@ -894,6 +894,120 @@ class Guarded(final String id) {
 ''');
     });
 
+    test(
+      'preserves retained initializers and body statements together',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/retrying_client.dart', '''
+class RetryingGoldApiClient extends GoldApiClient {
+  final int retries;
+
+  RetryingGoldApiClient(this.retries)
+      : assert(retries > 0),
+        super(dio: Dio()) {
+    print(retries);
+  }
+}
+
+class GoldApiClient {
+  GoldApiClient({required Object dio});
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/retrying_client.dart',
+          declarationName: 'RetryingGoldApiClient',
+        );
+        expect(await formattedFile(root, 'lib/retrying_client.dart'), '''
+class RetryingGoldApiClient(final int retries) extends GoldApiClient {
+  this : assert(retries > 0), super(dio: Dio()) {
+    print(retries);
+  }
+}
+
+class GoldApiClient {
+  GoldApiClient({required Object dio});
+}
+''');
+      },
+    );
+
+    test(
+      'keeps explicit empty parentheses for zero-parameter retained initializers',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/counting_client.dart', '''
+class _CountingFrankfurterClient extends FrankfurterClient {
+  _CountingFrankfurterClient() : super(dio: Dio());
+
+  int latestCalls = 0;
+}
+
+class FrankfurterClient {
+  FrankfurterClient({required Object dio});
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/counting_client.dart',
+          declarationName: '_CountingFrankfurterClient',
+        );
+        expect(await formattedFile(root, 'lib/counting_client.dart'), '''
+class _CountingFrankfurterClient() extends FrankfurterClient {
+  this : super(dio: Dio());
+
+  int latestCalls = 0;
+}
+
+class FrankfurterClient {
+  FrankfurterClient({required Object dio});
+}
+''');
+      },
+    );
+
+    test(
+      'keeps explicit empty parentheses for zero-parameter retained bodies',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/tracker.dart', '''
+class Tracker {
+  Tracker() {
+    print('created');
+  }
+
+  int latestCalls = 0;
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/tracker.dart',
+          declarationName: 'Tracker',
+        );
+        expect(await formattedFile(root, 'lib/tracker.dart'), '''
+class Tracker() {
+  this {
+    print('created');
+  }
+
+  int latestCalls = 0;
+}
+''');
+      },
+    );
+
     test('moves bodies that write local variables shadowing fields', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

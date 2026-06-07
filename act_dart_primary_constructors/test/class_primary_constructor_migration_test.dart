@@ -406,6 +406,36 @@ class Empty;
 ''');
     });
 
+    test(
+      'keeps body comments when migration removes the last members',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/commented_empty.dart', '''
+class CommentedEmpty {
+  final String id;
+
+  CommentedEmpty(this.id);
+
+  // Keep this body note.
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/commented_empty.dart',
+          declarationName: 'CommentedEmpty',
+        );
+        expect(await formattedFile(root, 'lib/commented_empty.dart'), '''
+class CommentedEmpty(final String id) {
+  // Keep this body note.
+}
+''');
+      },
+    );
+
     test('dry run reports migrations without writing files', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

@@ -46,6 +46,36 @@ void main() {
     });
 
     test(
+      'rejects overlapping class body collapse and member removal edits',
+      () {
+        const source = '''
+class Empty {
+  Empty();
+}
+''';
+        final bodyStart = source.indexOf('{');
+        final bodyEnd = source.indexOf('}') + 1;
+        final constructorStart = source.indexOf('Empty();');
+
+        expect(
+          () => validateSourceEdits(source, [
+            SourceEdit.replace(
+              SourceRange.fromStartEnd(start: bodyStart, end: bodyEnd),
+              ';',
+            ),
+            SourceEdit.delete(
+              SourceRange.fromStartEnd(
+                start: constructorStart,
+                end: constructorStart + 'Empty();'.length,
+              ),
+            ),
+          ]),
+          throwsA(isA<SourceEditException>()),
+        );
+      },
+    );
+
+    test(
       'rejects duplicate equal-offset replacements as overlapping edits',
       () {
         expect(

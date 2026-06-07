@@ -130,25 +130,20 @@ class _ClassPrimaryConstructorPlanner {
         SourceEdit.insert(declaration.namePart.end, primaryParameters),
       ...realizationPlan.fieldInitializerEdits,
     ];
-
-    if (!primaryBodyRequired &&
-        declaration.body.members.length == removableMembers.length) {
-      edits.add(SourceEdit.replace(_rangeFor(declaration.body), ';'));
-    } else {
-      for (final member in removableMembers) {
-        final range = _memberRemovalRange(source, member);
-        edits.add(SourceEdit.delete(range));
-      }
-      if (primaryBodyRequired) {
-        final range = _memberRemovalRange(source, constructor);
-        edits.add(
-          SourceEdit.replace(range, realizationPlan.primaryBodySource!),
+    final bodyRewritePlan =
+        _ClassBodyRewritePlanner(
+          source: source,
+          declaration: declaration,
+          constructor: constructor,
+        ).plan(
+          removableMembers: removableMembers,
+          primaryBodySource: realizationPlan.primaryBodySource,
         );
-      }
-    }
+    edits.addAll(bodyRewritePlan.edits);
 
     return _ClassMigrationPlan(
       edits: edits,
+      emptyClassBodyRewrite: bodyRewritePlan.emptyClassBodyRewrite,
       migratedDeclaration: MigratedDeclarationReport(
         path: targetFile.relativePath,
         declarationKind: 'class',

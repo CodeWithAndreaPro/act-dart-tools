@@ -54,7 +54,7 @@ class _TargetFileDeclarationPlanner {
     return switch (classPlanner.decide()) {
       _MigratedClassPrimaryConstructor(:final plan) =>
         _DeclarationMigrationPlan(
-          edits: plan.edits,
+          edits: plan.sourceEdits,
           migratedDeclarations: [plan.migratedDeclaration],
         ),
       _SkippedClassPrimaryConstructor(:final reason) =>

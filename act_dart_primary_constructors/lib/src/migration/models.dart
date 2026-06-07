@@ -14,10 +14,40 @@ class _ClassMigrationPlan {
   const _ClassMigrationPlan({
     required this.edits,
     required this.migratedDeclaration,
+    this.emptyClassBodyRewrite,
   });
 
   final List<SourceEdit> edits;
+  final _EmptyClassBodyRewriteIntent? emptyClassBodyRewrite;
   final MigratedDeclarationReport migratedDeclaration;
+
+  List<SourceEdit> get sourceEdits => [
+    ...edits,
+    if (emptyClassBodyRewrite case final rewrite?) rewrite.toEdit(),
+  ];
+}
+
+class _ClassBodyRewritePlan {
+  const _ClassBodyRewritePlan({
+    required this.edits,
+    this.emptyClassBodyRewrite,
+  });
+
+  final List<SourceEdit> edits;
+  final _EmptyClassBodyRewriteIntent? emptyClassBodyRewrite;
+
+  List<SourceEdit> get sourceEdits => [
+    ...edits,
+    if (emptyClassBodyRewrite case final rewrite?) rewrite.toEdit(),
+  ];
+}
+
+class _EmptyClassBodyRewriteIntent {
+  const _EmptyClassBodyRewriteIntent({required this.declaration});
+
+  final ClassDeclaration declaration;
+
+  SourceEdit toEdit() => SourceEdit.replace(_rangeFor(declaration.body), ';');
 }
 
 class _ParameterMigrationPlan {

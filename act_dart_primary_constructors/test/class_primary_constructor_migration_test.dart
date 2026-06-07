@@ -337,6 +337,62 @@ class Item(
 ''');
     });
 
+    test(
+      'preserves mixed positional and named parameters with moved comments',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/product.dart', '''
+class Product {
+  const Product(
+    this.id,
+    this.category, {
+    required this.name,
+    this.slug = 'auto',
+    this.active = true,
+  });
+
+  final int id;
+
+  /// Catalog category.
+  final String category;
+
+  /// Display name.
+  final String name;
+
+  final String slug;
+
+  /// Whether active.
+  final bool active;
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/product.dart',
+          declarationName: 'Product',
+          reportsEmptyClassBody: true,
+        );
+        expect(await formattedFile(root, 'lib/product.dart'), '''
+class const Product(
+  final int id,
+
+  /// Catalog category.
+  final String category, {
+
+  /// Display name.
+  required final String name,
+  final String slug = 'auto',
+
+  /// Whether active.
+  final bool active = true,
+});
+''');
+      },
+    );
+
     test('preserves type parameters modifiers and clauses', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

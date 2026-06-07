@@ -93,6 +93,7 @@ final class _FieldToParameterPlanner {
       field: field,
       fieldName: fieldName,
       parameterOffset: parameter.offset,
+      prefixEndOffset: parameter.thisKeyword.offset,
       replacementOffset: field.leadingCommentSource != null
           ? parameter.offset
           : parameter.thisKeyword.offset,
@@ -143,6 +144,7 @@ final class _FieldToParameterPlanner {
       field: field,
       fieldName: fieldName,
       parameterOffset: parameter.offset,
+      prefixEndOffset: parameterType.offset,
       replacementOffset: field.leadingCommentSource != null
           ? parameter.offset
           : parameterType.offset,
@@ -158,6 +160,7 @@ final class _FieldToParameterPlanner {
     required _FieldToParameterField field,
     required String fieldName,
     required int parameterOffset,
+    required int prefixEndOffset,
     required int replacementOffset,
     required int replacementEnd,
   }) {
@@ -169,7 +172,7 @@ final class _FieldToParameterPlanner {
 
     final shouldMoveComment = field.leadingCommentSource != null;
     final prefix = shouldMoveComment
-        ? source.substring(parameterOffset, replacementOffset)
+        ? source.substring(parameterOffset, prefixEndOffset)
         : '';
     return _PlannedConstructorParameter(
       _ParameterMigrationPlan(

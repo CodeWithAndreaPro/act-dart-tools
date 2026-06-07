@@ -115,6 +115,173 @@ class Person({required final String name, final int age = 0});
 ''');
     });
 
+    test(
+      'preserves required named field-formal with moved field comment',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/item.dart', '''
+class Item {
+  const Item({required this.name});
+
+  /// Display name.
+  final String name;
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/item.dart',
+          declarationName: 'Item',
+          reportsEmptyClassBody: true,
+        );
+        expect(await formattedFile(root, 'lib/item.dart'), '''
+class const Item({
+  /// Display name.
+  required final String name,
+});
+''');
+      },
+    );
+
+    test('preserves required marker in mixed moved field comments', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/rate.dart', '''
+class Rate {
+  const Rate({required this.id, required this.value});
+
+  final int id;
+
+  /// Current rate.
+  final double value;
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/rate.dart',
+        declarationName: 'Rate',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/rate.dart'), '''
+class const Rate({
+  required final int id,
+
+  /// Current rate.
+  required final double value,
+});
+''');
+    });
+
+    test('moves field comments after simple super parameters', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/time_range_selector.dart', '''
+class TimeRangeSelector extends ConsumerWidget {
+  const TimeRangeSelector({super.key, required this.snapshots});
+
+  /// Available snapshots.
+  final List<Snapshot> snapshots;
+}
+
+class ConsumerWidget {
+  const ConsumerWidget({Object? key});
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/time_range_selector.dart',
+        declarationName: 'TimeRangeSelector',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/time_range_selector.dart'), '''
+class const TimeRangeSelector({
+  super.key,
+
+  /// Available snapshots.
+  required final List<Snapshot> snapshots,
+}) extends ConsumerWidget;
+
+class ConsumerWidget {
+  const ConsumerWidget({Object? key});
+}
+''');
+    });
+
+    test(
+      'preserves optional named field-formal with moved field comment',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/investment.dart', '''
+class Investment {
+  const Investment({this.symbol});
+
+  /// Populated from joined queries.
+  final Symbol? symbol;
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/investment.dart',
+          declarationName: 'Investment',
+          reportsEmptyClassBody: true,
+        );
+        expect(await formattedFile(root, 'lib/investment.dart'), '''
+class const Investment({
+  /// Populated from joined queries.
+  final Symbol? symbol,
+});
+''');
+      },
+    );
+
+    test(
+      'preserves defaulted named field-formal with moved field comment',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/symbol.dart', '''
+class Symbol {
+  const Symbol({this.priceSource = SymbolPriceSource.manual});
+
+  /// Source used for latest price fetch behavior.
+  final SymbolPriceSource priceSource;
+}
+
+enum SymbolPriceSource { manual }
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/symbol.dart',
+          declarationName: 'Symbol',
+          reportsEmptyClassBody: true,
+        );
+        expect(await formattedFile(root, 'lib/symbol.dart'), '''
+class const Symbol({
+  /// Source used for latest price fetch behavior.
+  final SymbolPriceSource priceSource = SymbolPriceSource.manual,
+});
+
+enum SymbolPriceSource { manual }
+''');
+      },
+    );
+
     test('preserves optional positional parameters and defaults', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));

@@ -39,6 +39,23 @@ void main() {
       expect(fileSystem.writes, isEmpty);
     });
 
+    test('later input parse failure aborts previously planned writes', () {
+      final validSource = _fieldFormalClass('User');
+      final fileSystem = _MemoryTargetPackageRunFileSystem(
+        files: {'lib/user.dart': validSource, 'lib/broken.dart': 'class {'},
+      );
+
+      final outcome = TargetPackageRunner(fileSystem: fileSystem).run(
+        const TargetPackageRunRequest(root: _root, mode: 'safe', dryRun: false),
+      );
+
+      expect(outcome.exitCode, exitParseFailure);
+      expect(outcome.report, isNull);
+      expect(outcome.error!.code, 'parseFailure');
+      expect(fileSystem.writes, isEmpty);
+      expect(fileSystem.files['lib/user.dart'], validSource);
+    });
+
     test('transformed-source validation failure aborts before writes', () {
       final fileSystem = _MemoryTargetPackageRunFileSystem(
         files: {'lib/user.dart': _fieldFormalClass('User')},

@@ -415,6 +415,7 @@ void main() {
         CliErrorReport(code: 'invalidRoot', message: 'bad root'),
         CliErrorReport(code: 'parseFailure', message: 'bad input'),
         CliErrorReport(code: 'validationFailure', message: 'bad output'),
+        CliErrorReport(code: 'internalError', message: 'bad internal state'),
       ];
 
       expect(reports.map((report) => report.toJson()).toList(), [
@@ -441,6 +442,12 @@ void main() {
           'schemaVersion': schemaVersion,
           'toolVersion': packageVersion,
           'error': {'code': 'validationFailure', 'message': 'bad output'},
+        },
+        {
+          'ok': false,
+          'schemaVersion': schemaVersion,
+          'toolVersion': packageVersion,
+          'error': {'code': 'internalError', 'message': 'bad internal state'},
         },
       ]);
     });

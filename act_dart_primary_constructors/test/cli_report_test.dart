@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
+import 'package:act_dart_primary_constructors/src/discovery.dart';
+import 'package:act_dart_primary_constructors/src/migration.dart';
+import 'package:act_dart_primary_constructors/src/target_package_run.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -66,6 +69,22 @@ void main() {
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded.keys, [
+        'ok',
+        'schemaVersion',
+        'toolVersion',
+        'root',
+        'mode',
+        'dryRun',
+        'formatted',
+        'changedFiles',
+        'migratedDeclarations',
+        'skippedDeclarations',
+        'skippedFiles',
+        'skippedDirectories',
+        'transformCounts',
+        'skipReasonCounts',
+      ]);
       expect(decoded, containsPair('ok', true));
       expect(decoded, containsPair('schemaVersion', schemaVersion));
       expect(decoded, containsPair('toolVersion', packageVersion));
@@ -125,6 +144,45 @@ void main() {
         'excludedDirectory': 1,
         'nestedRepository': 2,
       });
+    });
+
+    test('skip-only run succeeds with ok true and unchanged source', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const source = '''
+class Skip {
+  final String value;
+
+  @deprecated
+  Skip(this.value);
+}
+''';
+      writeFile(root, 'lib/skip.dart', source);
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['ok'], isTrue);
+      expect(decoded['changedFiles'], isEmpty);
+      expect(decoded['migratedDeclarations'], isEmpty);
+      expect(decoded['skippedDeclarations'], [
+        {
+          'path': 'lib/skip.dart',
+          'declarationKind': 'class',
+          'declarationName': 'Skip',
+          'transform': 'primaryConstructor',
+          'offset': 0,
+          'reason': 'constructorMetadata',
+          'message':
+              'Constructor metadata is not moved to primary constructors.',
+        },
+      ]);
+      expect(decoded['skippedFiles'], isEmpty);
+      expect(decoded['skippedDirectories'], isEmpty);
+      expect(decoded['skipReasonCounts'], {'constructorMetadata': 1});
+      expect(readFile(root, 'lib/skip.dart'), source);
     });
 
     test('skipped directory Dart files are not parsed or validated', () async {
@@ -247,6 +305,24 @@ void main() {
       });
     });
 
+    for (final flag in ['--diff', '--include', '--exclude']) {
+      test(
+        'unsupported deferred flag $flag returns argument-error JSON',
+        () async {
+          final result = await runCli(['migrate', flag, '--json']);
+
+          expect(result.exitCode, exitArgumentError);
+          expect(result.stderr, isEmpty);
+          final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+          expect(decoded['ok'], isFalse);
+          expect(decoded['error'], {
+            'code': 'argumentError',
+            'message': 'Could not find an option named "$flag".',
+          });
+        },
+      );
+    }
+
     test('input parse failure returns parse-failure JSON', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -265,6 +341,76 @@ void main() {
       expect(error['code'], 'parseFailure');
       expect(error['message'], contains('Failed to parse'));
     });
+
+    test('validation failure returns validation-failure JSON', () async {
+      final stdout = StringBuffer();
+      final stderr = StringBuffer();
+      final fileSystem = _MemoryTargetPackageRunFileSystem(
+        files: {'lib/user.dart': _fieldFormalClass('User')},
+      );
+      final runner = TargetPackageRunner(
+        fileSystem: fileSystem,
+        parseSource: (source, {required path, required input}) {
+          if (!input) {
+            throw MigrationFailure(
+              'Forced transformed-source validation failure for $path.',
+              isInputParseFailure: false,
+            );
+          }
+          return parseTargetDartSource(source, path: path, input: input);
+        },
+      );
+
+      final exitCode = await runDartPrimaryConstructors(
+        ['migrate', '--root', _memoryRoot, '--json'],
+        stdout: stdout,
+        stderr: stderr,
+        runner: runner,
+      );
+
+      expect(exitCode, exitValidationFailure);
+      expect(stderr.toString(), isEmpty);
+      expect(fileSystem.writes, isEmpty);
+      final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['error'], {
+        'code': 'validationFailure',
+        'message':
+            'Forced transformed-source validation failure for $_memoryRoot/lib/user.dart.',
+      });
+    });
+
+    test(
+      'internal failure returns JSON and human diagnostics on stderr',
+      () async {
+        final stdout = StringBuffer();
+        final stderr = StringBuffer();
+
+        final exitCode = await runDartPrimaryConstructors(
+          ['migrate', '--root', _memoryRoot, '--json'],
+          stdout: stdout,
+          stderr: stderr,
+          runner: TargetPackageRunner(
+            fileSystem: _ThrowingTargetPackageRunFileSystem(),
+          ),
+        );
+
+        expect(exitCode, exitInternalError);
+        final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+        expect(decoded, {
+          'ok': false,
+          'schemaVersion': schemaVersion,
+          'toolVersion': packageVersion,
+          'error': {
+            'code': 'internalError',
+            'message': 'Internal error while running migration.',
+          },
+        });
+        expect(stderr.toString(), contains('Unexpected internal error:'));
+        expect(stderr.toString(), contains('forced discovery failure'));
+        expect(stdout.toString().trim().split('\n'), hasLength(1));
+      },
+    );
   });
 
   group('invalid root', () {
@@ -302,4 +448,75 @@ void main() {
       });
     });
   });
+}
+
+const _memoryRoot = '/target_package';
+
+String _fieldFormalClass(String name) {
+  return '''
+class $name {
+  final String value;
+
+  $name(this.value);
+}
+''';
+}
+
+class _MemoryTargetPackageRunFileSystem implements TargetPackageRunFileSystem {
+  _MemoryTargetPackageRunFileSystem({required Map<String, String> files})
+    : files = Map.of(files);
+
+  final Map<String, String> files;
+  final writes = <String, String>{};
+
+  @override
+  String? normalizePackageRoot(String? root) {
+    return root == _memoryRoot ? _memoryRoot : null;
+  }
+
+  @override
+  TargetPackageFiles discover(String root) {
+    return TargetPackageFiles(
+      dartFiles: [
+        for (final path in files.keys)
+          TargetDartFile(relativePath: path, path: '$_memoryRoot/$path'),
+      ],
+      skippedFiles: const [],
+      skippedDirectories: const [],
+    );
+  }
+
+  @override
+  String readDartFile(TargetDartFile file) {
+    return files[file.relativePath]!;
+  }
+
+  @override
+  void writeDartFile(TargetDartFile file, String source) {
+    writes[file.relativePath] = source;
+    files[file.relativePath] = source;
+  }
+}
+
+class _ThrowingTargetPackageRunFileSystem
+    implements TargetPackageRunFileSystem {
+  @override
+  String? normalizePackageRoot(String? root) {
+    return root == _memoryRoot ? _memoryRoot : null;
+  }
+
+  @override
+  TargetPackageFiles discover(String root) {
+    throw StateError('forced discovery failure');
+  }
+
+  @override
+  String readDartFile(TargetDartFile file) {
+    throw UnimplementedError();
+  }
+
+  @override
+  void writeDartFile(TargetDartFile file, String source) {
+    throw UnimplementedError();
+  }
 }

@@ -329,6 +329,134 @@ class PrivateFieldComment {
       );
     });
 
+    test('rewrites named-only constructors without a primary skip', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class AddInvestmentChoice {
+  const AddInvestmentChoice._({this.apiSymbol});
+
+  const AddInvestmentChoice.custom() : this._();
+
+  const AddInvestmentChoice.apiBacked(SupportedApiSymbol symbol) : this._(apiSymbol: symbol);
+
+  final SupportedApiSymbol? apiSymbol;
+
+  bool get isApiBacked => apiSymbol != null;
+  bool get isCustom => apiSymbol == null;
+}
+''';
+      writeFile(root, 'lib/add_investment_choice.dart', originalSource);
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], ['lib/add_investment_choice.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/add_investment_choice.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'AddInvestmentChoice._',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('const AddInvestmentChoice._'),
+        },
+        {
+          'path': 'lib/add_investment_choice.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'AddInvestmentChoice.custom',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('const AddInvestmentChoice.custom'),
+        },
+        {
+          'path': 'lib/add_investment_choice.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'AddInvestmentChoice.apiBacked',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf(
+            'const AddInvestmentChoice.apiBacked',
+          ),
+        },
+      ]);
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['transformCounts'], {'constructorShorthand': 3});
+      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(await formattedFile(root, 'lib/add_investment_choice.dart'), '''
+class AddInvestmentChoice {
+  const new _({this.apiSymbol});
+
+  const new custom() : this._();
+
+  const new apiBacked(SupportedApiSymbol symbol) : this._(apiSymbol: symbol);
+
+  final SupportedApiSymbol? apiSymbol;
+
+  bool get isApiBacked => apiSymbol != null;
+  bool get isCustom => apiSymbol == null;
+}
+''');
+    });
+
+    test('keeps constructor shorthand safety exclusions unchanged', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class ShorthandSafety {
+  ShorthandSafety.eligible();
+
+  factory ShorthandSafety.factoryConstructor() => ShorthandSafety.eligible();
+
+  external ShorthandSafety.externalConstructor();
+
+  @deprecated
+  ShorthandSafety.metadataConstructor();
+
+  /// Constructor comment.
+  ShorthandSafety.commentedConstructor();
+
+  ShorthandSafety.parameterMetadata(@deprecated String value);
+}
+''';
+      writeFile(root, 'lib/shorthand_safety.dart', originalSource);
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], ['lib/shorthand_safety.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'ShorthandSafety.eligible',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('ShorthandSafety.eligible'),
+        },
+      ]);
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['transformCounts'], {'constructorShorthand': 1});
+      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(await formattedFile(root, 'lib/shorthand_safety.dart'), '''
+class ShorthandSafety {
+  new eligible();
+
+  factory ShorthandSafety.factoryConstructor() => ShorthandSafety.eligible();
+
+  external ShorthandSafety.externalConstructor();
+
+  @deprecated
+  ShorthandSafety.metadataConstructor();
+
+  /// Constructor comment.
+  ShorthandSafety.commentedConstructor();
+
+  ShorthandSafety.parameterMetadata(@deprecated String value);
+}
+''');
+    });
+
     test(
       'rewrites constructors in a class skipped for an additional named constructor',
       () async {
@@ -671,7 +799,7 @@ class Child extends Parent {
 }
 
 class Parent {
-  Parent.named();
+  external Parent.named();
 }
 ''';
 

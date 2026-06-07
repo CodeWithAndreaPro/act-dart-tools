@@ -43,7 +43,7 @@ class _TargetFileDeclarationPlanner {
   ) {
     final primaryConstructorPlan = _planClassPrimaryConstructor(declaration);
     final emptyClassBodyPlan = _planStandaloneEmptyClassBody(declaration);
-    final constructorShorthandPlan = _planConstructorShorthandIfNamedSkip(
+    final constructorShorthandPlan = _planConstructorShorthand(
       declaration,
       primaryConstructorPlan,
     );
@@ -66,19 +66,29 @@ class _TargetFileDeclarationPlanner {
     );
   }
 
-  _DeclarationMigrationPlan _planConstructorShorthandIfNamedSkip(
+  _DeclarationMigrationPlan _planConstructorShorthand(
     ClassDeclaration declaration,
     _DeclarationMigrationPlan primaryConstructorPlan,
   ) {
-    final skippedForNamedConstructor = primaryConstructorPlan
-        .skippedDeclarations
+    final primaryConstructorWasMigrated = primaryConstructorPlan
+        .migratedDeclarations
         .any(
-          (skippedDeclaration) =>
-              skippedDeclaration.transform == primaryConstructorTransform &&
-              skippedDeclaration.reason ==
-                  DeclarationSkipReason.namedConstructor,
+          (migratedDeclaration) =>
+              migratedDeclaration.transform == primaryConstructorTransform,
         );
-    if (!skippedForNamedConstructor) {
+    if (primaryConstructorWasMigrated) {
+      return const _DeclarationMigrationPlan();
+    }
+
+    final primaryConstructorSkips = primaryConstructorPlan.skippedDeclarations
+        .where(
+          (skippedDeclaration) =>
+              skippedDeclaration.transform == primaryConstructorTransform,
+        );
+    if (primaryConstructorSkips.any(
+      (skippedDeclaration) =>
+          skippedDeclaration.reason != DeclarationSkipReason.namedConstructor,
+    )) {
       return const _DeclarationMigrationPlan();
     }
 
@@ -119,10 +129,7 @@ class _TargetFileDeclarationPlanner {
         constructor.redirectedConstructor != null ||
         constructor.parameters.parameters.any(
           (parameter) => parameter.metadata.isNotEmpty,
-        ) ||
-        constructor.initializers
-            .whereType<RedirectingConstructorInvocation>()
-            .isNotEmpty) {
+        )) {
       return null;
     }
 

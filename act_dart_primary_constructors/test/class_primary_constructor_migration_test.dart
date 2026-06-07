@@ -33,8 +33,18 @@ class User {
           'transform': 'primaryConstructor',
           'offset': 0,
         },
+        {
+          'path': 'lib/user.dart',
+          'declarationKind': 'class',
+          'declarationName': 'User',
+          'transform': 'emptyClassBody',
+          'offset': 0,
+        },
       ]);
-      expect(decoded['transformCounts'], {'primaryConstructor': 1});
+      expect(decoded['transformCounts'], {
+        'primaryConstructor': 1,
+        'emptyClassBody': 1,
+      });
       expect(await formattedFile(root, 'lib/user.dart'), '''
 class User(final String id, final int age);
 ''');
@@ -98,6 +108,7 @@ class Person {
         result,
         path: 'lib/person.dart',
         declarationName: 'Person',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/person.dart'), '''
 class Person({required final String name, final int age = 0});
@@ -122,6 +133,7 @@ class Range {
         result,
         path: 'lib/range.dart',
         declarationName: 'Range',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/range.dart'), '''
 class Range([final int start = 0, final int end = 10]);
@@ -147,6 +159,7 @@ class Item {
         result,
         path: 'lib/item.dart',
         declarationName: 'Item',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/item.dart'), '''
 class Item(
@@ -167,9 +180,13 @@ abstract class Box<T extends Object> extends Base<T> implements Named {
   Box(this.value);
 }
 
-abstract class Base<T> {}
+abstract class Base<T> {
+  void keep() {}
+}
 
-abstract class Named {}
+abstract class Named {
+  void keep() {}
+}
 ''');
 
       final result = await runCli(['migrate', '--root', root.path, '--json']);
@@ -178,15 +195,20 @@ abstract class Named {}
         result,
         path: 'lib/box.dart',
         declarationName: 'Box',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/box.dart'), '''
 abstract class Box<T extends Object>(final T value)
     extends Base<T>
     implements Named;
 
-abstract class Base<T> {}
+abstract class Base<T> {
+  void keep() {}
+}
 
-abstract class Named {}
+abstract class Named {
+  void keep() {}
+}
 ''');
     });
 
@@ -207,6 +229,7 @@ class _Secret {
         result,
         path: 'lib/secret.dart',
         declarationName: '_Secret',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/secret.dart'), '''
 class _Secret(final String _value);
@@ -233,6 +256,7 @@ class Profile {
         result,
         path: 'lib/profile.dart',
         declarationName: 'Profile',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/profile.dart'), '''
 class Profile(
@@ -261,6 +285,7 @@ class Session {
         result,
         path: 'lib/session.dart',
         declarationName: 'Session',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/session.dart'), '''
 class Session({required final String _id});
@@ -351,6 +376,7 @@ class Widget {
         result,
         path: 'lib/tile.dart',
         declarationName: 'Tile',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/tile.dart'), '''
 class Tile(super.key, final String title) extends Widget;
@@ -378,6 +404,7 @@ class Marker {
           result,
           path: 'lib/marker.dart',
           declarationName: 'Marker',
+          reportsEmptyClassBody: true,
         );
         expect(await formattedFile(root, 'lib/marker.dart'), '''
 class const Marker();
@@ -400,6 +427,7 @@ class Empty {
         result,
         path: 'lib/empty.dart',
         declarationName: 'Empty',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/empty.dart'), '''
 class Empty;
@@ -423,11 +451,23 @@ class CommentedEmpty {
 
         final result = await runCli(['migrate', '--root', root.path, '--json']);
 
-        expectSinglePrimaryConstructorMigration(
+        final decoded = expectSinglePrimaryConstructorMigration(
           result,
           path: 'lib/commented_empty.dart',
           declarationName: 'CommentedEmpty',
         );
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/commented_empty.dart',
+            'declarationKind': 'class',
+            'declarationName': 'CommentedEmpty',
+            'transform': 'emptyClassBody',
+            'offset': 0,
+            'reason': 'classBodyComment',
+            'message': 'Empty class bodies with comments are not collapsed.',
+          },
+        ]);
+        expect(decoded['skipReasonCounts'], {'classBodyComment': 1});
         expect(await formattedFile(root, 'lib/commented_empty.dart'), '''
 class CommentedEmpty(final String id) {
   // Keep this body note.
@@ -461,7 +501,10 @@ class User {
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
       expect(decoded['dryRun'], isTrue);
       expect(decoded['changedFiles'], ['lib/user.dart']);
-      expect(decoded['transformCounts'], {'primaryConstructor': 1});
+      expect(decoded['transformCounts'], {
+        'primaryConstructor': 1,
+        'emptyClassBody': 1,
+      });
       expect(readFile(root, 'lib/user.dart'), originalSource);
     });
 
@@ -691,6 +734,7 @@ class Documented {
           result,
           path: 'lib/documented.dart',
           declarationName: 'Documented',
+          reportsEmptyClassBody: true,
         );
         expect(await formattedFile(root, 'lib/documented.dart'), '''
 class Documented(
@@ -719,6 +763,7 @@ class LineCommented {
         result,
         path: 'lib/line_commented.dart',
         declarationName: 'LineCommented',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/line_commented.dart'), '''
 class LineCommented(
@@ -748,6 +793,7 @@ class BlockCommented {
         result,
         path: 'lib/block_commented.dart',
         declarationName: 'BlockCommented',
+        reportsEmptyClassBody: true,
       );
       expect(await formattedFile(root, 'lib/block_commented.dart'), '''
 class BlockCommented(

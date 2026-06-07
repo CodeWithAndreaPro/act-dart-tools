@@ -73,6 +73,13 @@ class Already(final String id);
           'transform': 'primaryConstructor',
           'offset': originalSource.indexOf('class Migrated'),
         },
+        {
+          'path': 'lib/source.dart',
+          'declarationKind': 'class',
+          'declarationName': 'Migrated',
+          'transform': 'emptyClassBody',
+          'offset': originalSource.indexOf('class Migrated'),
+        },
       ]);
       expect(decoded['skippedDeclarations'], [
         {
@@ -85,7 +92,10 @@ class Already(final String id);
           'message': 'This constructor parameter shape is not supported.',
         },
       ]);
-      expect(decoded['transformCounts'], {'primaryConstructor': 1});
+      expect(decoded['transformCounts'], {
+        'primaryConstructor': 1,
+        'emptyClassBody': 1,
+      });
       expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 1});
       expect(await formattedFile(root, 'lib/source.dart'), '''
 class Migrated(final String id);
@@ -163,8 +173,22 @@ class PlainAfter {
           {
             'path': 'lib/source.dart',
             'declarationKind': 'class',
+            'declarationName': 'FirstMigrated',
+            'transform': 'emptyClassBody',
+            'offset': originalSource.indexOf('class FirstMigrated'),
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
             'declarationName': 'SecondMigrated',
             'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class SecondMigrated'),
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'SecondMigrated',
+            'transform': 'emptyClassBody',
             'offset': originalSource.indexOf('class SecondMigrated'),
           },
         ]);
@@ -188,7 +212,10 @@ class PlainAfter {
             'message': 'This constructor parameter shape is not supported.',
           },
         ]);
-        expect(decoded['transformCounts'], {'primaryConstructor': 2});
+        expect(decoded['transformCounts'], {
+          'primaryConstructor': 2,
+          'emptyClassBody': 2,
+        });
         expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 2});
         expect(await formattedFile(root, 'lib/source.dart'), '''
 class PlainBefore {

@@ -15,10 +15,12 @@ class _ClassMigrationPlan {
     required this.edits,
     required this.migratedDeclaration,
     this.emptyClassBodyRewrite,
+    this.emptyClassBodySkipReason,
   });
 
   final List<SourceEdit> edits;
   final _EmptyClassBodyRewriteIntent? emptyClassBodyRewrite;
+  final DeclarationSkipReason? emptyClassBodySkipReason;
   final MigratedDeclarationReport migratedDeclaration;
 
   List<SourceEdit> get sourceEdits => [
@@ -31,10 +33,12 @@ class _ClassBodyRewritePlan {
   const _ClassBodyRewritePlan({
     required this.edits,
     this.emptyClassBodyRewrite,
+    this.emptyClassBodySkipReason,
   });
 
   final List<SourceEdit> edits;
   final _EmptyClassBodyRewriteIntent? emptyClassBodyRewrite;
+  final DeclarationSkipReason? emptyClassBodySkipReason;
 
   List<SourceEdit> get sourceEdits => [
     ...edits,

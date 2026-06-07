@@ -44,6 +44,7 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
   required String path,
   required String declarationName,
   String declarationKind = 'class',
+  bool reportsEmptyClassBody = false,
 }) {
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);
@@ -57,8 +58,19 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
       'transform': 'primaryConstructor',
       'offset': 0,
     },
+    if (reportsEmptyClassBody)
+      {
+        'path': path,
+        'declarationKind': 'class',
+        'declarationName': declarationName,
+        'transform': 'emptyClassBody',
+        'offset': 0,
+      },
   ]);
-  expect(decoded['transformCounts'], {'primaryConstructor': 1});
+  expect(decoded['transformCounts'], {
+    'primaryConstructor': 1,
+    if (reportsEmptyClassBody) 'emptyClassBody': 1,
+  });
   return decoded;
 }
 

@@ -144,6 +144,7 @@ class _ClassPrimaryConstructorPlanner {
     return _ClassMigrationPlan(
       edits: edits,
       emptyClassBodyRewrite: bodyRewritePlan.emptyClassBodyRewrite,
+      emptyClassBodySkipReason: bodyRewritePlan.emptyClassBodySkipReason,
       migratedDeclaration: MigratedDeclarationReport(
         path: targetFile.relativePath,
         declarationKind: 'class',

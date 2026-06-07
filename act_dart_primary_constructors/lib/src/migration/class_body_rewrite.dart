@@ -23,15 +23,23 @@ final class _ClassBodyRewritePlanner {
       for (final range in removalRanges) SourceEdit.delete(range),
     ]);
     final _ClassBodyRewritePlan plan;
-    if (primaryBodySource == null &&
-        _allBodyMembersAreRemoved(removableMembers) &&
-        _bodyContainsOnlyRemovedMemberSource(removalRanges)) {
-      plan = _ClassBodyRewritePlan(
-        edits: const [],
-        emptyClassBodyRewrite: _EmptyClassBodyRewriteIntent(
-          declaration: declaration,
-        ),
-      );
+    final allBodyMembersAreRemoved = _allBodyMembersAreRemoved(
+      removableMembers,
+    );
+    if (primaryBodySource == null && allBodyMembersAreRemoved) {
+      plan = _bodyContainsOnlyRemovedMemberSource(removalRanges)
+          ? _ClassBodyRewritePlan(
+              edits: const [],
+              emptyClassBodyRewrite: _EmptyClassBodyRewriteIntent(
+                declaration: declaration,
+              ),
+            )
+          : _ClassBodyRewritePlan(
+              edits: [
+                for (final range in removalRanges) SourceEdit.delete(range),
+              ],
+              emptyClassBodySkipReason: DeclarationSkipReason.classBodyComment,
+            );
     } else {
       plan = _ClassBodyRewritePlan(
         edits: [

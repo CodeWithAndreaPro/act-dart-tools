@@ -43,7 +43,40 @@ class _TargetFileDeclarationPlanner {
   _DeclarationMigrationPlan _planClassDeclaration(
     ClassDeclaration declaration,
   ) {
-    return _planClassPrimaryConstructor(declaration);
+    final primaryConstructorPlan = _planClassPrimaryConstructor(declaration);
+    final emptyClassBodyPlan = _planStandaloneEmptyClassBody(declaration);
+    return _DeclarationMigrationPlan(
+      edits: [...primaryConstructorPlan.edits, ...emptyClassBodyPlan.edits],
+      migratedDeclarations: [
+        ...primaryConstructorPlan.migratedDeclarations,
+        ...emptyClassBodyPlan.migratedDeclarations,
+      ],
+      skippedDeclarations: [
+        ...primaryConstructorPlan.skippedDeclarations,
+        ...emptyClassBodyPlan.skippedDeclarations,
+      ],
+    );
+  }
+
+  _DeclarationMigrationPlan _planStandaloneEmptyClassBody(
+    ClassDeclaration declaration,
+  ) {
+    final emptyClassBodyPlanner = _EmptyClassBodyPlanner(
+      source: source,
+      declaration: declaration,
+    );
+    return switch (emptyClassBodyPlanner.decide()) {
+      _MigratedEmptyClassBody(:final rewrite) => _DeclarationMigrationPlan(
+        edits: [rewrite.toEdit()],
+        migratedDeclarations: [_emptyClassBodyMigratedReport(declaration)],
+      ),
+      _SkippedEmptyClassBody(:final reason) => _DeclarationMigrationPlan(
+        skippedDeclarations: [
+          _emptyClassBodySkippedReport(declaration, reason),
+        ],
+      ),
+      _NoOpEmptyClassBody() => const _DeclarationMigrationPlan(),
+    };
   }
 
   _DeclarationMigrationPlan _planClassPrimaryConstructor(
@@ -58,7 +91,15 @@ class _TargetFileDeclarationPlanner {
       _MigratedClassPrimaryConstructor(:final plan) =>
         _DeclarationMigrationPlan(
           edits: plan.sourceEdits,
-          migratedDeclarations: [plan.migratedDeclaration],
+          migratedDeclarations: [
+            plan.migratedDeclaration,
+            if (plan.emptyClassBodyRewrite != null)
+              _emptyClassBodyMigratedReport(declaration),
+          ],
+          skippedDeclarations: [
+            if (plan.emptyClassBodySkipReason case final reason?)
+              _emptyClassBodySkippedReport(declaration, reason),
+          ],
         ),
       _SkippedClassPrimaryConstructor(:final reason) =>
         _DeclarationMigrationPlan(
@@ -103,6 +144,32 @@ class _TargetFileDeclarationPlanner {
         ),
       _NoOpEnumPrimaryConstructor() => const _DeclarationMigrationPlan(),
     };
+  }
+
+  MigratedDeclarationReport _emptyClassBodyMigratedReport(
+    ClassDeclaration declaration,
+  ) {
+    return MigratedDeclarationReport(
+      path: targetFile.relativePath,
+      declarationKind: 'class',
+      declarationName: declaration.namePart.typeName.lexeme,
+      transform: emptyClassBodyTransform,
+      offset: declaration.offset,
+    );
+  }
+
+  SkippedDeclarationReport _emptyClassBodySkippedReport(
+    ClassDeclaration declaration,
+    DeclarationSkipReason reason,
+  ) {
+    return SkippedDeclarationReport(
+      path: targetFile.relativePath,
+      declarationKind: 'class',
+      declarationName: declaration.namePart.typeName.lexeme,
+      transform: emptyClassBodyTransform,
+      offset: declaration.offset,
+      reason: reason,
+    );
   }
 }
 

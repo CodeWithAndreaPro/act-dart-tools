@@ -42,6 +42,10 @@ enum DeclarationSkipReason {
     'Empty non-const constructors without parameters are only supported when '
         'the class body can collapse.',
   ),
+  classBodyComment(
+    'classBodyComment',
+    'Empty class bodies with comments are not collapsed.',
+  ),
   constructorMetadata(
     'constructorMetadata',
     'Constructor metadata is not moved to primary constructors.',

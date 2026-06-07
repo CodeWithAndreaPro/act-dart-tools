@@ -82,30 +82,18 @@ class _TargetFileDeclarationPlanner {
               skippedDeclaration.transform == primaryConstructorTransform,
         );
     if (primaryConstructorSkips.any(
-      (skippedDeclaration) =>
-          skippedDeclaration.reason != DeclarationSkipReason.namedConstructor,
+      (skippedDeclaration) => !_allowsConstructorShorthandAfterPrimarySkip(
+        skippedDeclaration.reason,
+      ),
     )) {
       return const _DeclarationMigrationPlan();
     }
 
     final edits = <SourceEdit>[];
     final migratedDeclarations = <MigratedDeclarationReport>[];
-    final skippedDeclarations = <SkippedDeclarationReport>[];
     for (final constructor
         in declaration.body.members.whereType<ConstructorDeclaration>()) {
       if (primaryConstructorWasMigrated && _isUnnamedConstructor(constructor)) {
-        continue;
-      }
-
-      final skipReason = _constructorShorthandSkipReason(constructor);
-      if (skipReason != null) {
-        skippedDeclarations.add(
-          _constructorShorthandSkippedReport(
-            declaration: declaration,
-            constructor: constructor,
-            reason: skipReason,
-          ),
-        );
         continue;
       }
 
@@ -128,33 +116,20 @@ class _TargetFileDeclarationPlanner {
     return _DeclarationMigrationPlan(
       edits: edits,
       migratedDeclarations: migratedDeclarations,
-      skippedDeclarations: skippedDeclarations,
     );
   }
 
-  DeclarationSkipReason? _constructorShorthandSkipReason(
-    ConstructorDeclaration constructor,
+  bool _allowsConstructorShorthandAfterPrimarySkip(
+    DeclarationSkipReason reason,
   ) {
-    if (constructor.factoryKeyword != null ||
-        constructor.newKeyword != null ||
-        constructor.typeName == null) {
-      return null;
-    }
-    if (constructor.externalKeyword != null) {
-      return DeclarationSkipReason.externalConstructor;
-    }
-    if (constructor.metadata.isNotEmpty) {
-      return DeclarationSkipReason.constructorMetadata;
-    }
-    if (constructor.documentationComment != null) {
-      return DeclarationSkipReason.constructorComment;
-    }
-    if (constructor.parameters.parameters.any(
-      (parameter) => parameter.metadata.isNotEmpty,
-    )) {
-      return DeclarationSkipReason.parameterMetadata;
-    }
-    return null;
+    return switch (reason) {
+      DeclarationSkipReason.namedConstructor ||
+      DeclarationSkipReason.externalConstructor ||
+      DeclarationSkipReason.constructorMetadata ||
+      DeclarationSkipReason.constructorComment ||
+      DeclarationSkipReason.parameterMetadata => true,
+      _ => false,
+    };
   }
 
   SourceEdit? _constructorShorthandRewrite(ConstructorDeclaration constructor) {
@@ -172,21 +147,6 @@ class _TargetFileDeclarationPlanner {
       end: name?.offset ?? typeName.end,
     );
     return SourceEdit.replace(range, replacement);
-  }
-
-  SkippedDeclarationReport _constructorShorthandSkippedReport({
-    required ClassDeclaration declaration,
-    required ConstructorDeclaration constructor,
-    required DeclarationSkipReason reason,
-  }) {
-    return SkippedDeclarationReport(
-      path: targetFile.relativePath,
-      declarationKind: 'constructor',
-      declarationName: _constructorReportName(declaration, constructor),
-      transform: constructorShorthandTransform,
-      offset: constructor.offset,
-      reason: reason,
-    );
   }
 
   String _constructorReportName(

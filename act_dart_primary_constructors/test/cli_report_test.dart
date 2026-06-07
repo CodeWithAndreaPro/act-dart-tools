@@ -151,9 +151,9 @@ void main() {
       addTearDown(() => root.deleteSync(recursive: true));
       const source = '''
 class Skip {
+  @deprecated
   final String value;
 
-  @deprecated
   Skip(this.value);
 }
 ''';
@@ -174,14 +174,13 @@ class Skip {
           'declarationName': 'Skip',
           'transform': 'primaryConstructor',
           'offset': 0,
-          'reason': 'constructorMetadata',
-          'message':
-              'Constructor metadata is not moved to primary constructors.',
+          'reason': 'fieldMetadata',
+          'message': 'Field metadata is not moved to declaring parameters.',
         },
       ]);
       expect(decoded['skippedFiles'], isEmpty);
       expect(decoded['skippedDirectories'], isEmpty);
-      expect(decoded['skipReasonCounts'], {'constructorMetadata': 1});
+      expect(decoded['skipReasonCounts'], {'fieldMetadata': 1});
       expect(readFile(root, 'lib/skip.dart'), source);
     });
 

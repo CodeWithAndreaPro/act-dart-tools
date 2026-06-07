@@ -398,7 +398,7 @@ class AddInvestmentChoice {
 ''');
     });
 
-    test('reports constructor shorthand safety exclusions precisely', () async {
+    test('rewrites syntax-valid constructor shorthand candidates', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
       const originalSource = '''
@@ -434,8 +434,6 @@ class ShorthandSafety {
           'transform': 'constructorShorthand',
           'offset': originalSource.indexOf('ShorthandSafety.eligible'),
         },
-      ]);
-      expect(decoded['skippedDeclarations'], [
         {
           'path': 'lib/shorthand_safety.dart',
           'declarationKind': 'constructor',
@@ -444,8 +442,6 @@ class ShorthandSafety {
           'offset': originalSource.indexOf(
             'external ShorthandSafety.externalConstructor',
           ),
-          'reason': 'externalConstructor',
-          'message': 'External constructors are not supported.',
         },
         {
           'path': 'lib/shorthand_safety.dart',
@@ -453,9 +449,6 @@ class ShorthandSafety {
           'declarationName': 'ShorthandSafety.metadataConstructor',
           'transform': 'constructorShorthand',
           'offset': originalSource.indexOf('@deprecated'),
-          'reason': 'constructorMetadata',
-          'message':
-              'Constructor metadata is not moved to primary constructors.',
         },
         {
           'path': 'lib/shorthand_safety.dart',
@@ -463,9 +456,6 @@ class ShorthandSafety {
           'declarationName': 'ShorthandSafety.commentedConstructor',
           'transform': 'constructorShorthand',
           'offset': originalSource.indexOf('/// Constructor comment.'),
-          'reason': 'constructorComment',
-          'message':
-              'Constructor comments are not moved to primary constructors.',
         },
         {
           'path': 'lib/shorthand_safety.dart',
@@ -473,35 +463,167 @@ class ShorthandSafety {
           'declarationName': 'ShorthandSafety.parameterMetadata',
           'transform': 'constructorShorthand',
           'offset': originalSource.indexOf('ShorthandSafety.parameterMetadata'),
-          'reason': 'parameterMetadata',
-          'message': 'Parameter metadata is not moved to declaring parameters.',
         },
       ]);
-      expect(decoded['transformCounts'], {'constructorShorthand': 1});
-      expect(decoded['skipReasonCounts'], {
-        'externalConstructor': 1,
-        'constructorMetadata': 1,
-        'constructorComment': 1,
-        'parameterMetadata': 1,
-      });
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['transformCounts'], {'constructorShorthand': 5});
+      expect(decoded['skipReasonCounts'], isEmpty);
       expect(await formattedFile(root, 'lib/shorthand_safety.dart'), '''
 class ShorthandSafety {
   new eligible();
 
   factory ShorthandSafety.factoryConstructor() => ShorthandSafety.eligible();
 
-  external ShorthandSafety.externalConstructor();
+  external new externalConstructor();
 
   @deprecated
-  ShorthandSafety.metadataConstructor();
+  new metadataConstructor();
 
   /// Constructor comment.
-  ShorthandSafety.commentedConstructor();
+  new commentedConstructor();
 
-  ShorthandSafety.parameterMetadata(@deprecated String value);
+  new parameterMetadata(@deprecated String value);
 }
 ''');
     });
+
+    for (final scenario in [
+      (
+        name: 'external unnamed constructor',
+        relativePath: 'lib/external_constructor.dart',
+        declarationName: 'ExternalConstructor',
+        reason: 'externalConstructor',
+        message: 'External constructors are not supported.',
+        offsetNeedle: 'external ExternalConstructor',
+        source: '''
+class ExternalConstructor {
+  external ExternalConstructor();
+}
+''',
+        expectedFormatted: '''
+class ExternalConstructor {
+  external new();
+}
+''',
+      ),
+      (
+        name: 'constructor metadata',
+        relativePath: 'lib/constructor_metadata.dart',
+        declarationName: 'ConstructorMetadata',
+        reason: 'constructorMetadata',
+        message: 'Constructor metadata is not moved to primary constructors.',
+        offsetNeedle: '@deprecated',
+        source: '''
+class ConstructorMetadata {
+  final String id;
+
+  @deprecated
+  ConstructorMetadata(this.id);
+}
+''',
+        expectedFormatted: '''
+class ConstructorMetadata {
+  final String id;
+
+  @deprecated
+  new(this.id);
+}
+''',
+      ),
+      (
+        name: 'constructor documentation comment',
+        relativePath: 'lib/constructor_documentation_comment.dart',
+        declarationName: 'ConstructorDocumentationComment',
+        reason: 'constructorComment',
+        message: 'Constructor comments are not moved to primary constructors.',
+        offsetNeedle: '/// Constructor comment.',
+        source: '''
+class ConstructorDocumentationComment {
+  final String id;
+
+  /// Constructor comment.
+  ConstructorDocumentationComment(this.id);
+}
+''',
+        expectedFormatted: '''
+class ConstructorDocumentationComment {
+  final String id;
+
+  /// Constructor comment.
+  new(this.id);
+}
+''',
+      ),
+      (
+        name: 'parameter metadata',
+        relativePath: 'lib/parameter_metadata.dart',
+        declarationName: 'ParameterMetadata',
+        reason: 'parameterMetadata',
+        message: 'Parameter metadata is not moved to declaring parameters.',
+        offsetNeedle: 'ParameterMetadata(@deprecated this.id)',
+        source: '''
+class ParameterMetadata {
+  final String id;
+
+  ParameterMetadata(@deprecated this.id);
+}
+''',
+        expectedFormatted: '''
+class ParameterMetadata {
+  final String id;
+
+  new(@deprecated this.id);
+}
+''',
+      ),
+    ]) {
+      test(
+        'keeps primary skip and rewrites retained ${scenario.name}',
+        () async {
+          final root = await createPackageRoot();
+          addTearDown(() => root.deleteSync(recursive: true));
+          writeFile(root, scenario.relativePath, scenario.source);
+
+          final result = await runCli([
+            'migrate',
+            '--root',
+            root.path,
+            '--json',
+          ]);
+
+          expect(result.exitCode, exitSuccess);
+          expect(result.stderr, isEmpty);
+          final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+          expect(decoded['changedFiles'], [scenario.relativePath]);
+          expect(decoded['migratedDeclarations'], [
+            {
+              'path': scenario.relativePath,
+              'declarationKind': 'constructor',
+              'declarationName': scenario.declarationName,
+              'transform': 'constructorShorthand',
+              'offset': scenario.source.indexOf(scenario.offsetNeedle),
+            },
+          ]);
+          expect(decoded['skippedDeclarations'], [
+            {
+              'path': scenario.relativePath,
+              'declarationKind': 'class',
+              'declarationName': scenario.declarationName,
+              'transform': 'primaryConstructor',
+              'offset': 0,
+              'reason': scenario.reason,
+              'message': scenario.message,
+            },
+          ]);
+          expect(decoded['transformCounts'], {'constructorShorthand': 1});
+          expect(decoded['skipReasonCounts'], {scenario.reason: 1});
+          expect(
+            await formattedFile(root, scenario.relativePath),
+            scenario.expectedFormatted,
+          );
+        },
+      );
+    }
 
     test(
       'rewrites constructors in a class skipped for an additional named constructor',
@@ -604,33 +726,6 @@ class UnsupportedBodyConstructor {
     }
 
     for (final scenario in [
-      (
-        name: 'constructor metadata',
-        declarationName: 'ConstructorMetadata',
-        reason: 'constructorMetadata',
-        message: 'Constructor metadata is not moved to primary constructors.',
-        source: '''
-class ConstructorMetadata {
-  final String id;
-
-  @deprecated
-  ConstructorMetadata(this.id);
-}
-''',
-      ),
-      (
-        name: 'parameter metadata',
-        declarationName: 'ParameterMetadata',
-        reason: 'parameterMetadata',
-        message: 'Parameter metadata is not moved to declaring parameters.',
-        source: '''
-class ParameterMetadata {
-  final String id;
-
-  ParameterMetadata(@deprecated this.id);
-}
-''',
-      ),
       (
         name: 'field metadata',
         declarationName: 'FieldMetadata',

@@ -103,6 +103,10 @@ enum DeclarationSkipReason {
     'unsafeInitializerDependency',
     'Initializer field assignments must depend only on constructor parameters.',
   ),
+  unsafeInitializerOrder(
+    'unsafeInitializerOrder',
+    'Moving initializer field assignments would change initializer evaluation order.',
+  ),
   unsupportedInitializer(
     'unsupportedInitializer',
     'This constructor initializer is not supported.',

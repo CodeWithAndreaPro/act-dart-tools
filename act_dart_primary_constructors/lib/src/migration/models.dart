@@ -114,11 +114,13 @@ class _ConstructorRealizationPlan {
 class _FieldInitializerMigration {
   const _FieldInitializerMigration({
     required this.fieldName,
+    required this.initializerOffset,
     required this.variable,
     required this.expression,
   });
 
   final String fieldName;
+  final int initializerOffset;
   final VariableDeclaration variable;
   final Expression expression;
 }

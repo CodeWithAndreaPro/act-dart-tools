@@ -790,6 +790,117 @@ class UnsafeInitializerDependency {
       );
     });
 
+    test('skips constructor-call initializer non-parameter arguments', () async {
+      const originalSource = '''
+class UnsafeInitializerDependency {
+  final WidgetTester tester;
+  final NavigationRobot navigation;
+
+  UnsafeInitializerDependency(this.tester)
+      : navigation = NavigationRobot(sharedTester);
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/initializer_dependency.dart',
+        originalSource: originalSource,
+        declarationName: 'UnsafeInitializerDependency',
+        reason: 'unsafeInitializerDependency',
+        message:
+            'Initializer field assignments must depend only on constructor parameters.',
+      );
+    });
+
+    test('skips moved initializers before existing field initializers', () async {
+      const originalSource = '''
+class OrderedInitializers {
+  OrderedInitializers(this.tester) : navigation = NavigationRobot(tester);
+
+  final WidgetTester tester;
+  final NavigationRobot navigation;
+  final SettingsRobot settings = SettingsRobot();
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/initializer_order.dart',
+        originalSource: originalSource,
+        declarationName: 'OrderedInitializers',
+        reason: 'unsafeInitializerOrder',
+        message:
+            'Moving initializer field assignments would change initializer evaluation order.',
+      );
+    });
+
+    test('skips moved initializer fields in changed relative order', () async {
+      const originalSource = '''
+class ReorderedInitializers {
+  ReorderedInitializers(this.tester)
+      : settings = SettingsRobot(tester),
+        navigation = NavigationRobot(tester);
+
+  final WidgetTester tester;
+  final NavigationRobot navigation;
+  final SettingsRobot settings;
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/reordered_initializers.dart',
+        originalSource: originalSource,
+        declarationName: 'ReorderedInitializers',
+        reason: 'unsafeInitializerOrder',
+        message:
+            'Moving initializer field assignments would change initializer evaluation order.',
+      );
+    });
+
+    test('skips moved initializers after retained assertions', () async {
+      const originalSource = '''
+class RetainedBeforeMoved {
+  final int value;
+  final int doubled;
+
+  RetainedBeforeMoved(this.value)
+      : assert(value > 0),
+        doubled = value * 2;
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/retained_before_moved.dart',
+        originalSource: originalSource,
+        declarationName: 'RetainedBeforeMoved',
+        reason: 'unsafeInitializerOrder',
+        message:
+            'Moving initializer field assignments would change initializer evaluation order.',
+      );
+    });
+
+    test('skips moved initializers after retained super calls', () async {
+      const originalSource = '''
+class RetainedSuperBeforeMoved extends Base {
+  final int value;
+  final int doubled;
+
+  RetainedSuperBeforeMoved(this.value)
+      : super(value),
+        doubled = value * 2;
+}
+
+class Base(final Object value);
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/super_before_moved.dart',
+        originalSource: originalSource,
+        declarationName: 'RetainedSuperBeforeMoved',
+        reason: 'unsafeInitializerOrder',
+        message:
+            'Moving initializer field assignments would change initializer evaluation order.',
+      );
+    });
+
     test('skips named super initializer cases precisely', () async {
       const originalSource = '''
 class Child extends Parent {

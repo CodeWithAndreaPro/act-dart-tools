@@ -166,9 +166,19 @@ final class _ConstructorInitializationPlanner {
       fieldInitializers.add(
         _FieldInitializerMigration(
           fieldName: fieldName,
+          initializerOffset: initializer.offset,
           variable: field.$3,
           expression: expression,
         ),
+      );
+    }
+
+    if (_fieldInitializerOrderWouldChange(
+      fieldInitializers: fieldInitializers,
+      retainedInitializers: retainedInitializers,
+    )) {
+      return const _SkippedConstructorInitialization(
+        DeclarationSkipReason.unsafeInitializerOrder,
       );
     }
 
@@ -252,6 +262,50 @@ final class _ConstructorInitializationPlanner {
         if (parameter.name case final name?) name.lexeme,
     };
   }
+
+  bool _fieldInitializerOrderWouldChange({
+    required List<_FieldInitializerMigration> fieldInitializers,
+    required List<ConstructorInitializer> retainedInitializers,
+  }) {
+    if (fieldInitializers.isEmpty) {
+      return false;
+    }
+
+    for (final retainedInitializer in retainedInitializers) {
+      for (final fieldInitializer in fieldInitializers) {
+        if (retainedInitializer.offset < fieldInitializer.initializerOffset) {
+          return true;
+        }
+      }
+    }
+
+    final fieldInitializersInDeclarationOrder = [...fieldInitializers]
+      ..sort((a, b) => a.variable.offset.compareTo(b.variable.offset));
+    for (var i = 0; i < fieldInitializers.length; i++) {
+      if (fieldInitializersInDeclarationOrder[i].fieldName !=
+          fieldInitializers[i].fieldName) {
+        return true;
+      }
+    }
+
+    for (final member in bodyInfo.members.whereType<FieldDeclaration>()) {
+      if (member.isStatic) {
+        continue;
+      }
+      for (final variable in member.fields.variables) {
+        if (variable.initializer == null) {
+          continue;
+        }
+        for (final fieldInitializer in fieldInitializers) {
+          if (fieldInitializer.variable.offset < variable.offset) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
 }
 
 sealed class _ConstructorInitializationDecision {
@@ -288,6 +342,25 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
   bool isSafe = true;
 
   @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (isSafe) {
+      node.argumentList.accept(this);
+    }
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (!isSafe) {
+      return;
+    }
+    if (node.target == null && _startsWithUppercase(node.methodName.name)) {
+      node.argumentList.accept(this);
+      return;
+    }
+    super.visitMethodInvocation(node);
+  }
+
+  @override
   void visitSimpleIdentifier(SimpleIdentifier node) {
     if (!isSafe || _isNonReferenceIdentifier(node)) {
       return;
@@ -321,6 +394,14 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
       return true;
     }
     return false;
+  }
+
+  bool _startsWithUppercase(String identifier) {
+    if (identifier.isEmpty) {
+      return false;
+    }
+    final firstUnit = identifier.codeUnitAt(0);
+    return firstUnit >= 65 && firstUnit <= 90;
   }
 }
 

@@ -271,6 +271,30 @@ enum UnsafeInitializerDependency {
       );
     });
 
+    test('skips moved initializers before existing field initializers', () async {
+      const originalSource = '''
+enum OrderedInitializers {
+  value(1);
+
+  final int base;
+  final int doubled;
+  final int existing = 0;
+
+  const OrderedInitializers(this.base) : doubled = base * 2;
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/initializer_order.dart',
+        originalSource: originalSource,
+        declarationKind: 'enum',
+        declarationName: 'OrderedInitializers',
+        reason: 'unsafeInitializerOrder',
+        message:
+            'Moving initializer field assignments would change initializer evaluation order.',
+      );
+    });
+
     test('skips assignment-in-body field initialization precisely', () async {
       const originalSource = '''
 enum FieldInitializingBody {

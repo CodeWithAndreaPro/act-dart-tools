@@ -758,6 +758,39 @@ class Score(final int base, final int bonus) {
 ''');
     });
 
+    test('moves constructor-call initializer assignments to fields', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/app_robot.dart', '''
+class AppRobot {
+  AppRobot(this.tester)
+      : navigation = NavigationRobot(tester),
+        onboarding = OnboardingRobot(tester),
+        settings = SettingsRobot(tester);
+
+  final WidgetTester tester;
+  final NavigationRobot navigation;
+  final OnboardingRobot onboarding;
+  final SettingsRobot settings;
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/app_robot.dart',
+        declarationName: 'AppRobot',
+      );
+      expect(await formattedFile(root, 'lib/app_robot.dart'), '''
+class AppRobot(final WidgetTester tester) {
+  final NavigationRobot navigation = NavigationRobot(tester);
+  final OnboardingRobot onboarding = OnboardingRobot(tester);
+  final SettingsRobot settings = SettingsRobot(tester);
+}
+''');
+    });
+
     test('retains assert initializers in primary constructor body', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -828,8 +861,8 @@ class Ordered extends Base {
   final int doubled;
 
   Ordered(this.value)
-      : assert(value > 0),
-        doubled = value * 2,
+      : doubled = value * 2,
+        assert(value > 0),
         super(value),
         assert(value.isFinite);
 }

@@ -175,7 +175,7 @@ void main() {
     });
 
     test(
-      'serializes mixed declaration facts and V1 transform counts in order',
+      'serializes mixed declaration facts and deterministic transform counts in order',
       () {
         final report = MigrationReport.fromRun(
           root: '/target',
@@ -318,7 +318,7 @@ void main() {
       },
     );
 
-    test('omits absent and zero V1 transform counts', () {
+    test('omits absent and zero transform counts', () {
       final report = MigrationReport.fromRun(
         root: '/target',
         dryRun: true,

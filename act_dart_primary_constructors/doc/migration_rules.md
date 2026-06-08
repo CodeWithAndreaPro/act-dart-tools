@@ -1,6 +1,6 @@
 # Migration Rules
 
-This document explains the V1 behavior of the bundled ACT tooling for Dart
+This document explains the behavior of the bundled ACT tooling for Dart
 primary-constructor migrations. It is meant to help Regular ACT Users and LLM
 agents predict what the migration can change, what it will skip, and how to read
 the stable report vocabulary.
@@ -9,7 +9,7 @@ The migration is conservative. When it cannot prove that a rewrite preserves the
 meaning of the Target Package source, it leaves the source unchanged and reports
 a stable reason code.
 
-## Supported V1 Transforms
+## Supported Transforms
 
 The public transform names are:
 
@@ -81,13 +81,13 @@ Constructor body and initializer safety:
   is not supported for movement.
 - `fieldInitializingConstructorBody`: the constructor body initializes instance
   fields.
-- `unsupportedConstructorBody`: the constructor body shape is not one of the V1
+- `unsupportedConstructorBody`: the constructor body shape is not one of the
   supported shapes.
 - `unsafeInitializerDependency`: moving a field initializer would require a
   value other than constructor parameters.
 - `unsafeInitializerOrder`: moving field initializer assignments would change
   initializer evaluation order.
-- `unsupportedInitializer`: an initializer entry is not supported by V1.
+- `unsupportedInitializer`: an initializer entry is not supported.
 - `namedSuperInitializer`: named `super` constructor initializers are not
   migrated.
 
@@ -117,8 +117,7 @@ Field mapping and field declaration shape:
   to declaring parameters.
 - `unsupportedFieldModifier`: a field modifier is not supported for declaring
   parameters.
-- `unsupportedParameterShape`: a constructor parameter shape is not supported by
-  V1.
+- `unsupportedParameterShape`: a constructor parameter shape is not supported.
 
 ## File And Directory Skip Reasons
 

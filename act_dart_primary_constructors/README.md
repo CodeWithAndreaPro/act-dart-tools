@@ -25,10 +25,10 @@ dart run act_dart_primary_constructors migrate <target-package> --dry-run
 dart run act_dart_primary_constructors migrate <target-package> --include-skipped
 ```
 
-The root command supports no-argument help output, `--version`, and `migrate` in
-V1. Running the executable without arguments prints concise usage, target
-package behavior, and migrate options. The CLI does not expose a `--help` flag
-in V1. Help output is plain text on stdout and exits successfully.
+The root command supports no-argument help output, `--version`, and `migrate`.
+Running the executable without arguments prints concise usage, target package
+behavior, and migrate options. The CLI does not expose a `--help` flag. Help
+output is plain text on stdout and exits successfully.
 
 The required `target-package` positional argument selects the Target package
 root. Use `.` to migrate the current working directory. The root must be a
@@ -47,18 +47,16 @@ Without `--json`, text output is concise by default and summarizes counts.
 and skipped directories. `--include-skipped` does not change JSON output because
 JSON always includes skipped records.
 
-The CLI does not provide source diff output or include/exclude path flags in V1.
-
 ## Package Docs
 
-See [Migration Rules](doc/migration_rules.md) for the supported V1 transforms,
+See [Migration Rules](doc/migration_rules.md) for the supported transforms,
 stable transform names, declaration skip reason codes, file and directory skip
 reason codes, and no-op behavior.
 
 See [Architecture Overview](doc/architecture.md) for the CLI pipeline,
 responsibility boundaries, write-safety checks, and report-generation flow.
 
-At a high level, V1 supports conservative primary-constructor migration for
+At a high level, the CLI supports conservative primary-constructor migration for
 eligible classes and enhanced enums, constructor declaration shorthand for
 eligible constructors that remain in class bodies, and empty class-body collapse.
 The CLI skips rather than guesses when a migration could change semantics.
@@ -85,7 +83,7 @@ Successful JSON output has `ok: true` and schema version `1`:
 }
 ```
 
-`formatted` is always `false` in V1 because formatting is external to the CLI.
+`formatted` is always `false` because formatting is external to the CLI.
 
 `changedFiles` contains relative Dart file paths that would be changed in a dry
 run or were written in a real run.
@@ -139,10 +137,10 @@ Failure JSON output has `ok: false`:
 }
 ```
 
-Stable V1 error codes are `argumentError`, `invalidRoot`, `parseFailure`,
+Stable error codes are `argumentError`, `invalidRoot`, `parseFailure`,
 `validationFailure`, and `internalError`.
 
-Active V1 exit codes are:
+Active exit codes are:
 
 - `0`: success, including no-op and skip-only runs
 - `1`: transformed source validation failure
@@ -151,8 +149,8 @@ Active V1 exit codes are:
 - `66`: invalid root
 - `70`: internal error
 
-Formatter failure is not a CLI exit category in V1 because formatting is not
-performed by the CLI.
+Formatter failure is not a CLI exit category because formatting is not performed
+by the CLI.
 
 ## Formatting And Verification
 
@@ -161,10 +159,10 @@ parse validation, file writes, and report generation. It does not run `dart
 format`, `dart analyze`, `dart test`, `flutter analyze`, `flutter test`, `pub
 get`, or git commands.
 
-Formatting is external in V1 so the migration executable does not bundle a
-formatter dependency, mutate Target package setup, or hide formatter failures
-inside the migration report. The ACT skill reads `changedFiles` from the JSON
-report and formats only those Dart files with the resolved Dart runner and the
+Formatting is external, so the migration executable does not bundle a formatter
+dependency, mutate Target package setup, or hide formatter failures inside the
+migration report. The ACT skill reads `changedFiles` from the JSON report and
+formats only those Dart files with the resolved Dart runner and the
 primary-constructor formatter flag:
 
 ```bash
@@ -188,7 +186,7 @@ focused fixtures; it is not part of normal ACT user migration runs.
 ## Maintainer Notes
 
 This package is bundled ACT tooling, not a Target package dependency, global
-activation, or pub.dev dependency in V1. Active development lives in
+activation, or pub.dev dependency. Active development lives in
 `act-dart-tools/act_dart_primary_constructors/`; ACT users run the synced bundled
 copy inside the `act-dart-migrate-primary-constructors` skill package. This keeps
 the user workflow self-contained and independent of pub.dev or Target project
@@ -196,9 +194,6 @@ dependencies while preserving standalone CLI development history here.
 
 Commit `pubspec.lock` for this package. The lockfile keeps analyzer and CLI
 dependency behavior reproducible for the bundled executable and ACT validation.
-
-Sync mechanics for the ACT skill bundle are maintainer work outside normal CLI
-feature issues unless an issue explicitly requests sync work.
 
 The implementation separates CLI argument handling and report output from Target
 package discovery, migration planning, stable report serialization, and source

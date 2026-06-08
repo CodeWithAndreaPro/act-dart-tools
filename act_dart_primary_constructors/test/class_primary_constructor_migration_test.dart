@@ -1246,7 +1246,7 @@ class CurrencyApiClient({required final Dio dio, required final String apiKey})
       writeFile(root, 'lib/frankfurter_client.dart', '''
 class FrankfurterClient implements ApiClient {
   FrankfurterClient({required this._dio}) {
-    _dio.options.baseUrl = 'https://api.frankfurter.dev/v1';
+    _dio.options.baseUrl = 'https://api.frankfurter.dev/latest';
   }
 
   final Dio _dio;
@@ -1265,7 +1265,7 @@ class FrankfurterClient implements ApiClient {
       expect(await formattedFile(root, 'lib/frankfurter_client.dart'), '''
 class FrankfurterClient({required final Dio _dio}) implements ApiClient {
   this {
-    _dio.options.baseUrl = 'https://api.frankfurter.dev/v1';
+    _dio.options.baseUrl = 'https://api.frankfurter.dev/latest';
   }
 }
 ''');

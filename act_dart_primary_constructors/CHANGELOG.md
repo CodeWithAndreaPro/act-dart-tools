@@ -1,6 +1,6 @@
 ## 0.1.0
 
-- Implemented V1 conservative Dart primary-constructor migration for eligible
+- Implemented conservative Dart primary-constructor migration for eligible
   classes and enhanced enums.
 - Added constructor declaration shorthand migration for eligible constructors
   that remain in class or enum bodies.

@@ -31,7 +31,7 @@ The CLI owns:
 
 - Target Package root validation.
 - Dart file and skipped-path discovery.
-- Conservative migration planning for supported V1 transforms.
+- Conservative migration planning for supported transforms.
 - Source edit range validation before edits are applied.
 - Parse-before-write behavior for inspected input files.
 - Validation-before-write behavior for changed output files.
@@ -82,7 +82,7 @@ runtime behavior depend on a different production implementation.
 parses each discovered Dart file with the primary-constructor experiment enabled,
 then considers top-level class and enhanced-enum declarations.
 
-Planning is conservative. It creates source edits only for supported V1 shapes
+Planning is conservative. It creates source edits only for supported shapes
 and records skipped declarations with stable reason codes for unsupported or
 unsafe shapes. Class primary-constructor migration, enhanced-enum
 primary-constructor migration, constructor shorthand, and empty class-body

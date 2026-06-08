@@ -175,7 +175,6 @@ class SkippedDeclarationReport {
 class MigrationReport {
   const MigrationReport({
     required this.root,
-    required this.mode,
     required this.dryRun,
     this.changedFiles = const [],
     this.migratedDeclarations = const [],
@@ -188,14 +187,12 @@ class MigrationReport {
 
   factory MigrationReport.fromRun({
     required String root,
-    required String mode,
     required bool dryRun,
     required TargetPackageFiles discovery,
     required MigrationRunResult migration,
   }) {
     return MigrationReport(
       root: root,
-      mode: mode,
       dryRun: dryRun,
       changedFiles: _sortedStrings(migration.changedFiles),
       migratedDeclarations: _sortedMigratedDeclarationReports(
@@ -217,7 +214,6 @@ class MigrationReport {
   }
 
   final String root;
-  final String mode;
   final bool dryRun;
   final List<String> changedFiles;
   final List<MigratedDeclarationReport> migratedDeclarations;
@@ -233,7 +229,6 @@ class MigrationReport {
       'schemaVersion': schemaVersion,
       'toolVersion': packageVersion,
       'root': root,
-      'mode': mode,
       'dryRun': dryRun,
       'formatted': false,
       'changedFiles': changedFiles,
@@ -259,7 +254,6 @@ class MigrationReport {
       ..writeln('Dart primary constructors migration')
       ..writeln('Tool version: $packageVersion')
       ..writeln('Root: $root')
-      ..writeln('Mode: $mode')
       ..writeln('Dry run: $dryRun')
       ..writeln('Formatted: false')
       ..writeln('Changed files: ${changedFiles.length}')

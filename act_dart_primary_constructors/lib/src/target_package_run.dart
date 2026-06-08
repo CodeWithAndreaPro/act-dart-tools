@@ -6,14 +6,9 @@ import 'migration.dart';
 import 'report.dart';
 
 class TargetPackageRunRequest {
-  const TargetPackageRunRequest({
-    required this.root,
-    required this.mode,
-    required this.dryRun,
-  });
+  const TargetPackageRunRequest({required this.root, required this.dryRun});
 
   final String? root;
-  final String mode;
   final bool dryRun;
 }
 
@@ -136,7 +131,6 @@ class TargetPackageRunner {
     return TargetPackageRunOutcome.success(
       MigrationReport.fromRun(
         root: root,
-        mode: request.mode,
         dryRun: request.dryRun,
         discovery: discovery,
         migration: migration,

@@ -64,7 +64,6 @@ Future<int> _runMigrate(
   required TargetPackageRunner runner,
 }) async {
   final parser = ArgParser()
-    ..addOption('mode', defaultsTo: 'safe', allowed: const ['safe'])
     ..addFlag(
       'dry-run',
       negatable: false,
@@ -111,11 +110,7 @@ Future<int> _runMigrate(
   final root = results.rest.single;
 
   final outcome = runner.run(
-    TargetPackageRunRequest(
-      root: root,
-      mode: results.option('mode') ?? 'safe',
-      dryRun: results.flag('dry-run'),
-    ),
+    TargetPackageRunRequest(root: root, dryRun: results.flag('dry-run')),
   );
   if (outcome.report case final report?) {
     if (results.flag('json')) {
@@ -148,7 +143,6 @@ Arguments:
   target-package     Package root to migrate. Use . for the current directory.
 
 Options:
-  --mode safe         Migration mode. safe is currently the only supported mode.
   --dry-run           Preview the migration without writing files.
   --json              Emit a machine-readable JSON report.
   --include-skipped   Include skipped declarations in text output.

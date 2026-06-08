@@ -36,9 +36,6 @@ directory that contains a `pubspec.yaml`. Discovery scans non-generated Dart
 files under that root and reports generated files, nested packages, nested
 repositories or worktrees, and excluded transient directories separately.
 
-`--mode safe` is the only V1 migration mode and is the default. Future modes may
-relax guards, but V1 does not expose aggressive migration behavior.
-
 `--dry-run` runs the same discovery, migration planning, parse validation, and
 reporting path as a real run, but writes no files.
 
@@ -76,7 +73,6 @@ Successful JSON output has `ok: true` and schema version `1`:
   "schemaVersion": 1,
   "toolVersion": "0.1.0",
   "root": "/absolute/target/package",
-  "mode": "safe",
   "dryRun": false,
   "formatted": false,
   "changedFiles": ["lib/user.dart"],

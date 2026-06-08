@@ -7,7 +7,6 @@ void main() {
     test('combines file, directory, and declaration skip counts in order', () {
       final report = MigrationReport.fromRun(
         root: '/target',
-        mode: 'safe',
         dryRun: true,
         discovery: const TargetPackageFiles(
           dartFiles: [],
@@ -59,7 +58,6 @@ void main() {
     test('sorts report arrays deterministically when built from a run', () {
       final report = MigrationReport.fromRun(
         root: '/target',
-        mode: 'safe',
         dryRun: false,
         discovery: const TargetPackageFiles(
           dartFiles: [],
@@ -181,7 +179,6 @@ void main() {
       () {
         final report = MigrationReport.fromRun(
           root: '/target',
-          mode: 'safe',
           dryRun: true,
           discovery: const TargetPackageFiles(
             dartFiles: [],
@@ -324,7 +321,6 @@ void main() {
     test('omits absent and zero V1 transform counts', () {
       final report = MigrationReport.fromRun(
         root: '/target',
-        mode: 'safe',
         dryRun: true,
         discovery: const TargetPackageFiles(
           dartFiles: [],
@@ -351,7 +347,6 @@ void main() {
     test('text output summarizes run facts and include-skipped details', () {
       const report = MigrationReport(
         root: '/target',
-        mode: 'safe',
         dryRun: true,
         changedFiles: ['lib/model.dart'],
         migratedDeclarations: [
@@ -386,7 +381,13 @@ void main() {
       expect(output, contains('Dart primary constructors migration'));
       expect(output, contains('Tool version: $packageVersion'));
       expect(output, contains('Root: /target'));
-      expect(output, contains('Mode: safe'));
+      expect(output.split('\n').take(5), [
+        'Dart primary constructors migration',
+        'Tool version: $packageVersion',
+        'Root: /target',
+        'Dry run: true',
+        'Formatted: false',
+      ]);
       expect(output, contains('Dry run: true'));
       expect(output, contains('Formatted: false'));
       expect(output, contains('Changed files: 1'));

@@ -12,9 +12,9 @@ void main() {
         files: {'lib/user.dart': source},
       );
 
-      final outcome = TargetPackageRunner(fileSystem: fileSystem).run(
-        const TargetPackageRunRequest(root: _root, mode: 'safe', dryRun: true),
-      );
+      final outcome = TargetPackageRunner(
+        fileSystem: fileSystem,
+      ).run(const TargetPackageRunRequest(root: _root, dryRun: true));
 
       expect(outcome.exitCode, exitSuccess);
       expect(outcome.error, isNull);
@@ -29,9 +29,9 @@ void main() {
         files: {'lib/broken.dart': 'class {'},
       );
 
-      final outcome = TargetPackageRunner(fileSystem: fileSystem).run(
-        const TargetPackageRunRequest(root: _root, mode: 'safe', dryRun: false),
-      );
+      final outcome = TargetPackageRunner(
+        fileSystem: fileSystem,
+      ).run(const TargetPackageRunRequest(root: _root, dryRun: false));
 
       expect(outcome.exitCode, exitParseFailure);
       expect(outcome.report, isNull);
@@ -45,9 +45,9 @@ void main() {
         files: {'lib/user.dart': validSource, 'lib/broken.dart': 'class {'},
       );
 
-      final outcome = TargetPackageRunner(fileSystem: fileSystem).run(
-        const TargetPackageRunRequest(root: _root, mode: 'safe', dryRun: false),
-      );
+      final outcome = TargetPackageRunner(
+        fileSystem: fileSystem,
+      ).run(const TargetPackageRunRequest(root: _root, dryRun: false));
 
       expect(outcome.exitCode, exitParseFailure);
       expect(outcome.report, isNull);
@@ -74,7 +74,7 @@ void main() {
       );
 
       final outcome = runner.run(
-        const TargetPackageRunRequest(root: _root, mode: 'safe', dryRun: false),
+        const TargetPackageRunRequest(root: _root, dryRun: false),
       );
 
       expect(outcome.exitCode, exitValidationFailure);
@@ -111,9 +111,9 @@ void main() {
         ],
       );
 
-      final outcome = TargetPackageRunner(fileSystem: fileSystem).run(
-        const TargetPackageRunRequest(root: _root, mode: 'safe', dryRun: true),
-      );
+      final outcome = TargetPackageRunner(
+        fileSystem: fileSystem,
+      ).run(const TargetPackageRunRequest(root: _root, dryRun: true));
 
       final report = outcome.report!;
       expect(outcome.exitCode, exitSuccess);

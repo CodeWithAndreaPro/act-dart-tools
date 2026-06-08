@@ -47,8 +47,11 @@ void main() {
       expect(output, contains('migrate'));
       expect(output, contains('migrate <target-package> [options]'));
       expect(output, contains('Use . for the current directory'));
-      expect(output, contains('--mode safe'));
-      expect(output, contains('safe is currently the only supported mode'));
+      expect(output.split('\n').where(_isOptionLine), [
+        '  --dry-run           Preview the migration without writing files.',
+        '  --json              Emit a machine-readable JSON report.',
+        '  --include-skipped   Include skipped declarations in text output.',
+      ]);
       expect(output, contains('--dry-run'));
       expect(output, contains('--json'));
       expect(output, contains('--include-skipped'));
@@ -98,18 +101,13 @@ void main() {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final report = MigrationReport(
-        root: normalizedPath(root),
-        mode: 'safe',
-        dryRun: false,
-      );
+      final report = MigrationReport(root: normalizedPath(root), dryRun: false);
 
       expect(report.toJson(), {
         'ok': true,
         'schemaVersion': schemaVersion,
         'toolVersion': packageVersion,
         'root': normalizedPath(root),
-        'mode': 'safe',
         'dryRun': false,
         'formatted': false,
         'changedFiles': [],
@@ -136,7 +134,6 @@ void main() {
         'schemaVersion',
         'toolVersion',
         'root',
-        'mode',
         'dryRun',
         'formatted',
         'changedFiles',
@@ -151,7 +148,6 @@ void main() {
       expect(decoded, containsPair('schemaVersion', schemaVersion));
       expect(decoded, containsPair('toolVersion', packageVersion));
       expect(decoded, containsPair('root', normalizedPath(root)));
-      expect(decoded, containsPair('mode', 'safe'));
       expect(decoded, containsPair('dryRun', false));
       expect(decoded, containsPair('formatted', false));
       expect(decoded, containsPair('changedFiles', isEmpty));
@@ -283,7 +279,13 @@ class Skip {
       );
       expect(stdout.toString(), contains('Tool version: $packageVersion'));
       expect(stdout.toString(), contains('Root: ${normalizedPath(root)}'));
-      expect(stdout.toString(), contains('Mode: safe'));
+      expect(stdout.toString().split('\n').take(5), [
+        'Dart primary constructors migration',
+        'Tool version: $packageVersion',
+        'Root: ${normalizedPath(root)}',
+        'Dry run: false',
+        'Formatted: false',
+      ]);
       expect(stdout.toString(), contains('Dry run: false'));
       expect(stdout.toString(), contains('Formatted: false'));
       expect(stdout.toString(), contains('Changed files: 0'));
@@ -402,21 +404,18 @@ class Skip {
     });
 
     for (final flag in ['--diff', '--include', '--exclude']) {
-      test(
-        'unsupported deferred flag $flag returns argument-error JSON',
-        () async {
-          final result = await runCli(['migrate', flag, '--json']);
+      test('unsupported option $flag returns argument-error JSON', () async {
+        final result = await runCli(['migrate', flag, '--json']);
 
-          expect(result.exitCode, exitArgumentError);
-          expect(result.stderr, isEmpty);
-          final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
-          expect(decoded['ok'], isFalse);
-          expect(decoded['error'], {
-            'code': 'argumentError',
-            'message': 'Could not find an option named "$flag".',
-          });
-        },
-      );
+        expect(result.exitCode, exitArgumentError);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['ok'], isFalse);
+        expect(decoded['error'], {
+          'code': 'argumentError',
+          'message': 'Could not find an option named "$flag".',
+        });
+      });
     }
 
     test('input parse failure returns parse-failure JSON', () async {
@@ -594,6 +593,8 @@ class Skip {
 }
 
 const _memoryRoot = '/target_package';
+
+bool _isOptionLine(String line) => line.trimLeft().startsWith('--');
 
 String _fieldFormalClass(String name) {
   return '''

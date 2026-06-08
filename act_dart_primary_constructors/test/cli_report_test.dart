@@ -45,8 +45,8 @@ void main() {
       expect(output, contains('Usage:'));
       expect(output, contains('--version'));
       expect(output, contains('migrate'));
-      expect(output, contains('migrate [target-package] [options]'));
-      expect(output, contains('Defaults to the current directory'));
+      expect(output, contains('migrate <target-package> [options]'));
+      expect(output, contains('Use . for the current directory'));
       expect(output, contains('--mode safe'));
       expect(output, contains('safe is currently the only supported mode'));
       expect(output, contains('--dry-run'));
@@ -374,7 +374,30 @@ class Skip {
       expect(decoded['ok'], isFalse);
       expect(decoded['error'], {
         'code': 'argumentError',
-        'message': 'Expected at most one target package path.',
+        'message': 'Expected exactly one target package path.',
+      });
+    });
+
+    test('missing target path returns argument-error JSON', () async {
+      final stdout = StringBuffer();
+      final stderr = StringBuffer();
+
+      final exitCode = await runDartPrimaryConstructors(
+        ['migrate', '--json'],
+        stdout: stdout,
+        stderr: stderr,
+        runner: TargetPackageRunner(
+          fileSystem: _ThrowingTargetPackageRunFileSystem(),
+        ),
+      );
+
+      expect(exitCode, exitArgumentError);
+      expect(stderr.toString(), isEmpty);
+      final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message': 'Expected exactly one target package path.',
       });
     });
 
@@ -487,30 +510,33 @@ class Skip {
   });
 
   group('target root', () {
-    test('omitted target path targets the current working directory', () async {
-      final stdout = StringBuffer();
-      final stderr = StringBuffer();
-      final fileSystem = _MemoryTargetPackageRunFileSystem(
-        files: const {},
-        requestRoot: '.',
-      );
+    test(
+      'explicit dot target path targets the current working directory',
+      () async {
+        final stdout = StringBuffer();
+        final stderr = StringBuffer();
+        final fileSystem = _MemoryTargetPackageRunFileSystem(
+          files: const {},
+          requestRoot: '.',
+        );
 
-      final exitCode = await runDartPrimaryConstructors(
-        ['migrate', '--json'],
-        stdout: stdout,
-        stderr: stderr,
-        runner: TargetPackageRunner(fileSystem: fileSystem),
-      );
+        final exitCode = await runDartPrimaryConstructors(
+          ['migrate', '.', '--json'],
+          stdout: stdout,
+          stderr: stderr,
+          runner: TargetPackageRunner(fileSystem: fileSystem),
+        );
 
-      expect(exitCode, exitSuccess);
-      expect(stderr.toString(), isEmpty);
-      final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
-      expect(decoded['ok'], isTrue);
-      expect(decoded['root'], _memoryRoot);
-    });
+        expect(exitCode, exitSuccess);
+        expect(stderr.toString(), isEmpty);
+        final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+        expect(decoded['ok'], isTrue);
+        expect(decoded['root'], _memoryRoot);
+      },
+    );
 
     test(
-      'missing current-directory pubspec returns invalid-root JSON',
+      'explicit dot without current-directory pubspec returns invalid-root JSON',
       () async {
         final root = await Directory.systemTemp.createTemp(
           'dart_primary_no_pubspec_',
@@ -523,7 +549,7 @@ class Skip {
         Directory.current = root;
         try {
           final exitCode = await runDartPrimaryConstructors(
-            ['migrate', '--json'],
+            ['migrate', '.', '--json'],
             stdout: stdout,
             stderr: stderr,
           );

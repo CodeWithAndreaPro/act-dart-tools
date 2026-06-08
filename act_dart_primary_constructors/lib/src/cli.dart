@@ -95,11 +95,11 @@ Future<int> _runMigrate(
     );
   }
 
-  if (results.rest.length > 1) {
+  if (results.rest.length != 1) {
     return _writeError(
       const CliErrorReport(
         code: 'argumentError',
-        message: 'Expected at most one target package path.',
+        message: 'Expected exactly one target package path.',
       ),
       exitArgumentError,
       json: results.flag('json'),
@@ -108,7 +108,7 @@ Future<int> _runMigrate(
     );
   }
 
-  final root = results.rest.isEmpty ? '.' : results.rest.single;
+  final root = results.rest.single;
 
   final outcome = runner.run(
     TargetPackageRunRequest(
@@ -141,11 +141,11 @@ const _rootHelpOutput =
     '''Migrate Dart declarations to primary-constructor syntax.
 
 Usage:
-  dart run act_dart_primary_constructors migrate [target-package] [options]
+  dart run act_dart_primary_constructors migrate <target-package> [options]
   dart run act_dart_primary_constructors --version
 
 Arguments:
-  target-package     Package root to migrate. Defaults to the current directory.
+  target-package     Package root to migrate. Use . for the current directory.
 
 Options:
   --mode safe         Migration mode. safe is currently the only supported mode.

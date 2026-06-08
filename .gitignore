@@ -13,3 +13,6 @@ import.sh
 
 # macOS system files
 .DS_Store
+
+# Compiled Executable
+act_dart_primary_constructors/act_dart_primary_constructors

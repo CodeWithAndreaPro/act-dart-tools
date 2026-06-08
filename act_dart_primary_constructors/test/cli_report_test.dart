@@ -32,76 +32,44 @@ void main() {
   });
 
   group('help', () {
-    test('root --help prints usage text to stdout', () async {
-      final result = await runCli(['--help']);
+    test('root with no arguments prints usage text to stdout', () async {
+      final result = await runCli([]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
       final output = result.stdout as String;
-      expect(output, contains('Usage: dart run act_dart_primary_constructors'));
-      expect(output, contains('--version'));
-      expect(output, contains('--help'));
-      expect(output, contains('migrate'));
-      expect(output.trimLeft(), isNot(startsWith('{')));
-    });
-
-    test('migrate --help prints usage without running discovery', () async {
-      final stdout = StringBuffer();
-      final stderr = StringBuffer();
-
-      final exitCode = await runDartPrimaryConstructors(
-        ['migrate', '--help'],
-        stdout: stdout,
-        stderr: stderr,
-        runner: TargetPackageRunner(
-          fileSystem: _ThrowingTargetPackageRunFileSystem(),
-        ),
-      );
-
-      expect(exitCode, exitSuccess);
-      expect(stderr.toString(), isEmpty);
-      final output = stdout.toString();
       expect(
         output,
-        contains(
-          'Usage: dart run act_dart_primary_constructors migrate [target-package] [options]',
-        ),
+        contains('Migrate Dart declarations to primary-constructor syntax.'),
       );
-      expect(output, contains('Defaults to the current directory (.)'));
+      expect(output, contains('Usage:'));
+      expect(output, contains('--version'));
+      expect(output, contains('migrate'));
+      expect(output, contains('migrate [target-package] [options]'));
+      expect(output, contains('Defaults to the current directory'));
       expect(output, contains('--mode safe'));
       expect(output, contains('safe is currently the only supported mode'));
       expect(output, contains('--dry-run'));
       expect(output, contains('--json'));
       expect(output, contains('--include-skipped'));
+      expect(output, isNot(contains('Available commands')));
+      expect(output, isNot(contains('Migrate usage')));
+      expect(output, isNot(contains('--help')));
+      expect(output.trimLeft(), isNot(startsWith('{')));
     });
 
-    test('migrate --help does not require a target package root', () async {
-      final root = await Directory.systemTemp.createTemp(
-        'dart_primary_help_no_pubspec_',
+    test('root --help is not supported', () async {
+      final result = await runCli(['--help']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stdout, isEmpty);
+      expect(
+        result.stderr,
+        contains('Expected --version or the migrate command.'),
       );
-      addTearDown(() => root.deleteSync(recursive: true));
-      final stdout = StringBuffer();
-      final stderr = StringBuffer();
-      final previousCurrentDirectory = Directory.current;
-
-      Directory.current = root;
-      try {
-        final exitCode = await runDartPrimaryConstructors(
-          ['migrate', '--help'],
-          stdout: stdout,
-          stderr: stderr,
-        );
-
-        expect(exitCode, exitSuccess);
-      } finally {
-        Directory.current = previousCurrentDirectory;
-      }
-
-      expect(stderr.toString(), isEmpty);
-      expect(stdout.toString(), contains('Usage:'));
     });
 
-    test('migrate --help --json still prints text help', () async {
+    test('migrate --help is not supported', () async {
       final stdout = StringBuffer();
       final stderr = StringBuffer();
 
@@ -114,12 +82,14 @@ void main() {
         ),
       );
 
-      expect(exitCode, exitSuccess);
+      expect(exitCode, exitArgumentError);
       expect(stderr.toString(), isEmpty);
-      final output = stdout.toString();
-      expect(output, contains('Usage:'));
-      expect(output, contains('--json'));
-      expect(output.trimLeft(), isNot(startsWith('{')));
+      final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message': 'Could not find an option named "--help".',
+      });
     });
   });
 

@@ -18,18 +18,17 @@ Run the CLI from this package or from the synced bundled copy inside the ACT
 skill package:
 
 ```bash
-dart run act_dart_primary_constructors --help
+dart run act_dart_primary_constructors
 dart run act_dart_primary_constructors --version
-dart run act_dart_primary_constructors migrate --help
 dart run act_dart_primary_constructors migrate [target-package] --json
 dart run act_dart_primary_constructors migrate [target-package] --dry-run
 dart run act_dart_primary_constructors migrate [target-package] --include-skipped
 ```
 
-The root command supports `--help`, `--version`, and `migrate` in V1.
-Root help prints usage, root options, and available commands. `migrate --help`
-prints migrate-specific usage, target package behavior, and migrate options.
-Help output is always plain text on stdout and exits successfully.
+The root command supports no-argument help output, `--version`, and `migrate` in
+V1. Running the executable without arguments prints concise usage, target
+package behavior, and migrate options. The CLI does not expose a `--help` flag
+in V1. Help output is plain text on stdout and exits successfully.
 
 The optional `target-package` positional argument selects the Target package
 root. If omitted, it defaults to the current working directory (`.`). The root

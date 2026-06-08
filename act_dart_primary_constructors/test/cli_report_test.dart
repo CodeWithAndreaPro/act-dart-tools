@@ -64,7 +64,7 @@ void main() {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final result = await runCli(['migrate', '--root', root.path, '--json']);
+      final result = await runCli(['migrate', root.path, '--json']);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -124,7 +124,7 @@ void main() {
         'void checkout() {}',
       );
 
-      final result = await runCli(['migrate', '--root', root.path, '--json']);
+      final result = await runCli(['migrate', root.path, '--json']);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -159,7 +159,7 @@ class Skip {
 ''';
       writeFile(root, 'lib/skip.dart', source);
 
-      final result = await runCli(['migrate', '--root', root.path, '--json']);
+      final result = await runCli(['migrate', root.path, '--json']);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -190,7 +190,7 @@ class Skip {
       writeFile(root, 'build/broken.dart', 'class {');
       writeFile(root, 'lib/source.dart', 'void source() {}');
 
-      final result = await runCli(['migrate', '--root', root.path, '--json']);
+      final result = await runCli(['migrate', root.path, '--json']);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -208,7 +208,7 @@ class Skip {
       final stdout = StringBuffer();
       final stderr = StringBuffer();
       final exitCode = await runDartPrimaryConstructors(
-        ['migrate', '--root', root.path],
+        ['migrate', root.path],
         stdout: stdout,
         stderr: stderr,
       );
@@ -247,7 +247,7 @@ class Skip {
         final stdout = StringBuffer();
         final stderr = StringBuffer();
         final exitCode = await runDartPrimaryConstructors(
-          ['migrate', '--root', root.path, '--include-skipped'],
+          ['migrate', root.path, '--include-skipped'],
           stdout: stdout,
           stderr: stderr,
         );
@@ -271,7 +271,6 @@ class Skip {
 
       final result = await runCli([
         'migrate',
-        '--root',
         root.path,
         '--json',
         '--include-skipped',
@@ -304,6 +303,19 @@ class Skip {
       });
     });
 
+    test('more than one target path returns argument-error JSON', () async {
+      final result = await runCli(['migrate', 'one', 'two', '--json']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message': 'Expected at most one target package path.',
+      });
+    });
+
     for (final flag in ['--diff', '--include', '--exclude']) {
       test(
         'unsupported deferred flag $flag returns argument-error JSON',
@@ -327,7 +339,7 @@ class Skip {
       addTearDown(() => root.deleteSync(recursive: true));
       writeFile(root, 'lib/broken.dart', 'class {');
 
-      final result = await runCli(['migrate', '--root', root.path, '--json']);
+      final result = await runCli(['migrate', root.path, '--json']);
 
       expect(result.exitCode, exitParseFailure);
       expect(result.stderr, isEmpty);
@@ -361,7 +373,7 @@ class Skip {
       );
 
       final exitCode = await runDartPrimaryConstructors(
-        ['migrate', '--root', _memoryRoot, '--json'],
+        ['migrate', _memoryRoot, '--json'],
         stdout: stdout,
         stderr: stderr,
         runner: runner,
@@ -386,7 +398,7 @@ class Skip {
         final stderr = StringBuffer();
 
         final exitCode = await runDartPrimaryConstructors(
-          ['migrate', '--root', _memoryRoot, '--json'],
+          ['migrate', _memoryRoot, '--json'],
           stdout: stdout,
           stderr: stderr,
           runner: TargetPackageRunner(
@@ -412,21 +424,65 @@ class Skip {
     );
   });
 
-  group('invalid root', () {
-    test('missing root returns invalid-root JSON error', () async {
-      final result = await runCli(['migrate', '--json']);
+  group('target root', () {
+    test('omitted target path targets the current working directory', () async {
+      final stdout = StringBuffer();
+      final stderr = StringBuffer();
+      final fileSystem = _MemoryTargetPackageRunFileSystem(
+        files: const {},
+        requestRoot: '.',
+      );
 
-      expect(result.exitCode, exitInvalidRoot);
-      expect(result.stderr, isEmpty);
-      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
-      expect(decoded['ok'], isFalse);
-      expect(decoded['schemaVersion'], schemaVersion);
-      expect(decoded['toolVersion'], packageVersion);
-      expect(decoded['error'], {
-        'code': 'invalidRoot',
-        'message': 'A target package root is required.',
-      });
+      final exitCode = await runDartPrimaryConstructors(
+        ['migrate', '--json'],
+        stdout: stdout,
+        stderr: stderr,
+        runner: TargetPackageRunner(fileSystem: fileSystem),
+      );
+
+      expect(exitCode, exitSuccess);
+      expect(stderr.toString(), isEmpty);
+      final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+      expect(decoded['ok'], isTrue);
+      expect(decoded['root'], _memoryRoot);
     });
+
+    test(
+      'missing current-directory pubspec returns invalid-root JSON',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'dart_primary_no_pubspec_',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final stdout = StringBuffer();
+        final stderr = StringBuffer();
+        final previousCurrentDirectory = Directory.current;
+
+        Directory.current = root;
+        try {
+          final exitCode = await runDartPrimaryConstructors(
+            ['migrate', '--json'],
+            stdout: stdout,
+            stderr: stderr,
+          );
+
+          expect(exitCode, exitInvalidRoot);
+        } finally {
+          Directory.current = previousCurrentDirectory;
+        }
+
+        expect(stderr.toString(), isEmpty);
+        final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+        expect(decoded['ok'], isFalse);
+        expect(decoded['schemaVersion'], schemaVersion);
+        expect(decoded['toolVersion'], packageVersion);
+        expect(decoded['error'], {
+          'code': 'invalidRoot',
+          'message':
+              'Target package root does not exist or has no pubspec.yaml: .',
+        });
+      },
+    );
 
     test('non-package root returns invalid-root JSON error', () async {
       final root = await Directory.systemTemp.createTemp(
@@ -434,7 +490,7 @@ class Skip {
       );
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final result = await runCli(['migrate', '--root', root.path, '--json']);
+      final result = await runCli(['migrate', root.path, '--json']);
 
       expect(result.exitCode, exitInvalidRoot);
       expect(result.stderr, isEmpty);
@@ -462,15 +518,18 @@ class $name {
 }
 
 class _MemoryTargetPackageRunFileSystem implements TargetPackageRunFileSystem {
-  _MemoryTargetPackageRunFileSystem({required Map<String, String> files})
-    : files = Map.of(files);
+  _MemoryTargetPackageRunFileSystem({
+    required Map<String, String> files,
+    this.requestRoot = _memoryRoot,
+  }) : files = Map.of(files);
 
   final Map<String, String> files;
+  final String requestRoot;
   final writes = <String, String>{};
 
   @override
   String? normalizePackageRoot(String? root) {
-    return root == _memoryRoot ? _memoryRoot : null;
+    return root == requestRoot ? _memoryRoot : null;
   }
 
   @override

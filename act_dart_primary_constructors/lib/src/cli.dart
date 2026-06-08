@@ -59,7 +59,6 @@ Future<int> _runMigrate(
   required TargetPackageRunner runner,
 }) async {
   final parser = ArgParser()
-    ..addOption('root', help: 'Target Dart package root.')
     ..addOption('mode', defaultsTo: 'safe', allowed: const ['safe'])
     ..addFlag(
       'dry-run',
@@ -91,9 +90,24 @@ Future<int> _runMigrate(
     );
   }
 
+  if (results.rest.length > 1) {
+    return _writeError(
+      const CliErrorReport(
+        code: 'argumentError',
+        message: 'Expected at most one target package path.',
+      ),
+      exitArgumentError,
+      json: results.flag('json'),
+      stdout: stdout,
+      stderr: stderr,
+    );
+  }
+
+  final root = results.rest.isEmpty ? '.' : results.rest.single;
+
   final outcome = runner.run(
     TargetPackageRunRequest(
-      root: results.option('root'),
+      root: root,
       mode: results.option('mode') ?? 'safe',
       dryRun: results.flag('dry-run'),
     ),

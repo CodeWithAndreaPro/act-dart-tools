@@ -86,7 +86,7 @@ Future<Map<String, Object?>> expectSinglePrimaryConstructorSkip({
   addTearDown(() => root.deleteSync(recursive: true));
   writeFile(root, relativePath, originalSource);
 
-  final result = await runCli(['migrate', '--root', root.path, '--json']);
+  final result = await runCli(['migrate', root.path, '--json']);
 
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);

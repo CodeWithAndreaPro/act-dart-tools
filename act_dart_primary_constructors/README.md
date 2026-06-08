@@ -19,17 +19,19 @@ skill package:
 
 ```bash
 dart run act_dart_primary_constructors --version
-dart run act_dart_primary_constructors migrate --root <target-package> --json
-dart run act_dart_primary_constructors migrate --root <target-package> --dry-run
-dart run act_dart_primary_constructors migrate --root <target-package> --include-skipped
+dart run act_dart_primary_constructors migrate [target-package] --json
+dart run act_dart_primary_constructors migrate [target-package] --dry-run
+dart run act_dart_primary_constructors migrate [target-package] --include-skipped
 ```
 
 The root command supports only `--version` and `migrate` in V1.
 
-`--root` selects the Target package root. The root must be a directory that
-contains a `pubspec.yaml`. Discovery scans non-generated Dart files under that
-root and reports generated files, nested packages, nested repositories or
-worktrees, and excluded transient directories separately.
+The optional `target-package` positional argument selects the Target package
+root. If omitted, it defaults to the current working directory (`.`). The root
+must be a directory that contains a `pubspec.yaml`. Discovery scans
+non-generated Dart files under that root and reports generated files, nested
+packages, nested repositories or worktrees, and excluded transient directories
+separately.
 
 `--mode safe` is the only V1 migration mode and is the default. Future modes may
 relax guards, but V1 does not expose aggressive migration behavior.

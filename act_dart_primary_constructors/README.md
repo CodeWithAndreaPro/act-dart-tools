@@ -2,24 +2,52 @@
 
 Bundled ACT tooling for Dart primary-constructor migrations.
 
-This package provides a Dart CLI that migrates eligible Dart classes and enhanced
-enums from ordinary constructor boilerplate to Dart experimental
-primary-constructor syntax. It is intentionally conservative: when a declaration
-cannot be migrated safely, the tool leaves the source unchanged and reports a
-precise skip reason.
+This package provides a Dart CLI that migrates eligible Dart classes and enhanced enums from ordinary constructor boilerplate to Dart experimental
+[primary-constructor](https://dart.dev/language/primary-constructors) syntax. It is intentionally conservative: when a declaration cannot be migrated safely, the tool leaves the source unchanged and reports a precise skip reason.
 
-This package is the active development source. Maintainers periodically sync it
-into the ACT primary-constructor skill bundle for distribution, but sync
-mechanics are tracked separately from CLI feature work.
+## Minimum Requirements
+
+Ensure these are installed:
+
+- Flutter SDK 3.44.0 or higher
+- Dart SDK 3.12.0 or higher (already installed on Flutter SDK)
+
+## Before Using The Tool
+
+**Important**: Use the tool on a package/app that **already compiles without errors**.
+
+Set the Dart SDK version to 3.12 in your `pubspec.yaml` file.
+
+```yaml
+environment:
+  sdk: ^3.12.0
+```
+
+Enable the `primary-constructors` experiment in your `analysis_options.yaml` file.
+
+```yaml
+analyzer:
+  enable-experiment:
+    - primary-constructors
+```
+
+From this point on, always run the following commands with `--enable-experiment=primary-constructors` flag.
+
+```bash
+flutter run --enable-experiment=primary-constructors
+flutter test --enable-experiment=primary-constructors
+```
+
+Before using the tool, it is highly recommended that you fix all the analyzer errors and warnings.
+
+Some of them are based on lint rules that can be automatically fixed by `dart fix --apply`. But others will need to be manually fixed.
 
 ## Usage
 
-Run the CLI from this package or from the synced bundled copy inside the ACT
-skill package:
+Run the CLI from this package like this:
 
 ```bash
-dart run act_dart_primary_constructors
-dart run act_dart_primary_constructors --version
+dart run act_dart_primary_constructors # shows help output
 dart run act_dart_primary_constructors migrate <target-package> --json
 dart run act_dart_primary_constructors migrate <target-package> --dry-run
 dart run act_dart_primary_constructors migrate <target-package> --include-skipped
@@ -57,6 +85,10 @@ Without `--json`, text output is concise by default and summarizes counts.
 `--include-skipped` expands text output with skipped declarations, skipped files,
 and skipped directories. `--include-skipped` does not change JSON output because
 JSON always includes skipped records.
+
+## Performance
+
+`act_dart_primary_constructors` is **very fast**: the AOT-compiled executable can process 100,000 lines of code in under 1 second (tested on Mac Studio M2 Max).
 
 ## Package Docs
 

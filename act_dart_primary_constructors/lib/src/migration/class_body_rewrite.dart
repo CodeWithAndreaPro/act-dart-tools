@@ -76,7 +76,10 @@ final class _ClassBodyRewritePlanner {
   }
 
   bool _bodyContainsOnlyRemovedMemberSource(List<SourceRange> removalRanges) {
-    final bodyRange = _ordinaryClassBodyContentRange();
+    final bodyRange = _blockClassBodyContentRange(declaration.body);
+    if (bodyRange == null) {
+      return false;
+    }
     final sortedRanges = [...removalRanges]
       ..sort((a, b) => a.offset.compareTo(b.offset));
     var cursor = bodyRange.offset;
@@ -96,13 +99,6 @@ final class _ClassBodyRewritePlanner {
       }
     }
     return _isWhitespaceRange(cursor, bodyRange.end);
-  }
-
-  SourceRange _ordinaryClassBodyContentRange() {
-    return SourceRange.fromStartEnd(
-      start: declaration.body.offset + 1,
-      end: declaration.body.end - 1,
-    );
   }
 
   bool _isWhitespaceRange(int start, int end) {

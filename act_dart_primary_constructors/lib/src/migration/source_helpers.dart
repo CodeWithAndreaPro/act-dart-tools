@@ -8,6 +8,16 @@ SourceRange _rangeFor(AstNode node) {
   return SourceRange(offset: node.offset, length: node.length);
 }
 
+SourceRange? _blockClassBodyContentRange(ClassBody body) {
+  if (body is! BlockClassBody) {
+    return null;
+  }
+  return SourceRange.fromStartEnd(
+    start: body.leftBracket.end,
+    end: body.rightBracket.offset,
+  );
+}
+
 _DeclarationBodyInfo _classBodyInfo(ClassDeclaration declaration) {
   return _DeclarationBodyInfo(
     members: declaration.body.members,

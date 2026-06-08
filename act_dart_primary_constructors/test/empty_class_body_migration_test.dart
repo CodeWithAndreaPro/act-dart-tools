@@ -35,6 +35,33 @@ class Empty;
 ''');
     });
 
+    test('treats existing semicolon class bodies as no-ops', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class AlreadyEmpty;
+
+sealed class DatabaseIOResult;
+
+class DatabaseIOSuccess({final String? path}) extends DatabaseIOResult;
+
+class DatabaseIOError(final String message) extends DatabaseIOResult;
+''';
+      writeFile(root, 'lib/already_empty.dart', originalSource);
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], isEmpty);
+      expect(decoded['migratedDeclarations'], isEmpty);
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['transformCounts'], isEmpty);
+      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(readFile(root, 'lib/already_empty.dart'), originalSource);
+    });
+
     test(
       'reports empty body collapse separately after primary migration',
       () async {

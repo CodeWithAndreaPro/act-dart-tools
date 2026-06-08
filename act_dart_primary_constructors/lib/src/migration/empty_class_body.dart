@@ -16,7 +16,12 @@ final class _EmptyClassBodyPlanner {
       return const _NoOpEmptyClassBody();
     }
 
-    if (_bodyContainsOnlyWhitespace()) {
+    final bodyRange = _blockClassBodyContentRange(declaration.body);
+    if (bodyRange == null) {
+      return const _NoOpEmptyClassBody();
+    }
+
+    if (_bodyContainsOnlyWhitespace(bodyRange)) {
       return _MigratedEmptyClassBody(
         _EmptyClassBodyRewriteIntent(declaration: declaration),
       );
@@ -25,11 +30,8 @@ final class _EmptyClassBodyPlanner {
     return const _SkippedEmptyClassBody(DeclarationSkipReason.classBodyComment);
   }
 
-  bool _bodyContainsOnlyWhitespace() {
-    return source
-        .substring(declaration.body.offset + 1, declaration.body.end - 1)
-        .trim()
-        .isEmpty;
+  bool _bodyContainsOnlyWhitespace(SourceRange bodyRange) {
+    return source.substring(bodyRange.offset, bodyRange.end).trim().isEmpty;
   }
 }
 

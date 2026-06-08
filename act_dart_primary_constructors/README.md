@@ -38,6 +38,17 @@ flutter run --enable-experiment=primary-constructors
 flutter test --enable-experiment=primary-constructors
 ```
 
+Each configuration in your `.vscode/launch.json` file should also contain the `--enable-experiment=primary-constructors` flag:
+
+```json
+{
+  "name": "example_app",
+  "request": "launch",
+  "type": "dart",
+  "args": ["--enable-experiment=primary-constructors"]
+}
+```
+
 Before using the tool, it is highly recommended that you fix all the analyzer errors and warnings.
 
 Some of them are based on lint rules that can be automatically fixed by `dart fix --apply`. But others will need to be manually fixed.

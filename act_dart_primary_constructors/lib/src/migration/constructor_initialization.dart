@@ -227,8 +227,11 @@ final class _ConstructorInitializationPlanner {
       return const _FieldWriteResult();
     }
     final visitor = _FieldWriteVisitor(
-      fieldNames,
-      _constructorBodyLocalNames(),
+      fieldNames: fieldNames,
+      safeNestedReceiverNames: _fieldFormalParameterNames(
+        constructor.parameters,
+      ),
+      initialLocalNames: _constructorBodyLocalNames(),
     );
     body.accept(visitor);
     return visitor.result;
@@ -441,10 +444,14 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
 }
 
 class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
-  _FieldWriteVisitor(this.fieldNames, Set<String> initialLocalNames)
-    : _scopes = [initialLocalNames];
+  _FieldWriteVisitor({
+    required this.fieldNames,
+    required this.safeNestedReceiverNames,
+    required Set<String> initialLocalNames,
+  }) : _scopes = [initialLocalNames];
 
   final Set<String> fieldNames;
+  final Set<String> safeNestedReceiverNames;
   final List<Set<String>> _scopes;
   final Set<String> _writtenFieldNames = <String>{};
   bool _hasUnsafeWrite = false;
@@ -541,7 +548,8 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
   void _checkWriteTarget(Expression target) {
     final targetName = _fieldWriteTargetName(target);
     if (targetName == null) {
-      if (_maybeUnresolvedFieldWrite(target)) {
+      if (_maybeUnresolvedFieldWrite(target) &&
+          !_isSafeNestedReceiverWrite(target)) {
         _hasUnsafeWrite = true;
       }
       return;
@@ -569,6 +577,49 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
   bool _maybeUnresolvedFieldWrite(Expression target) {
     target = _unparenthesized(target);
     return target is PrefixedIdentifier || target is PropertyAccess;
+  }
+
+  bool _isSafeNestedReceiverWrite(Expression target) {
+    final rootName = _nestedPropertyRootName(target);
+    return rootName != null &&
+        safeNestedReceiverNames.contains(rootName) &&
+        !_isLocalName(rootName);
+  }
+
+  String? _nestedPropertyRootName(Expression target) {
+    target = _unparenthesized(target);
+    if (target is PrefixedIdentifier) {
+      return target.prefix.token.lexeme;
+    }
+    if (target is PropertyAccess) {
+      final receiver = target.target;
+      if (receiver == null) {
+        return null;
+      }
+      return _propertyReceiverRootName(receiver);
+    }
+    return null;
+  }
+
+  String? _propertyReceiverRootName(Expression receiver) {
+    receiver = _unparenthesized(receiver);
+    if (receiver is SimpleIdentifier) {
+      return receiver.token.lexeme;
+    }
+    if (receiver is PrefixedIdentifier) {
+      return receiver.prefix.token.lexeme;
+    }
+    if (receiver is PropertyAccess) {
+      final target = receiver.target;
+      if (target is ThisExpression) {
+        return receiver.propertyName.token.lexeme;
+      }
+      if (target == null) {
+        return null;
+      }
+      return _propertyReceiverRootName(target);
+    }
+    return null;
   }
 
   bool _isExplicitThisTarget(Expression target) {

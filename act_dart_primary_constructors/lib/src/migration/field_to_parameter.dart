@@ -203,14 +203,25 @@ final class _FieldToParameterPlanner {
         continue;
       }
       for (final variable in member.fields.variables) {
-        if (variable.initializer == null &&
-            !_usedFieldNames.contains(variable.name.lexeme) &&
-            !fieldInitializerNames.contains(variable.name.lexeme)) {
+        if (variable.initializer != null ||
+            _usedFieldNames.contains(variable.name.lexeme) ||
+            fieldInitializerNames.contains(variable.name.lexeme)) {
+          continue;
+        }
+        if (!_isNullableUninitializedRetainedField(member.fields)) {
           return true;
         }
       }
     }
     return false;
+  }
+
+  bool _isNullableUninitializedRetainedField(VariableDeclarationList fields) {
+    final type = fields.type;
+    return !fields.isFinal &&
+        !fields.isConst &&
+        type != null &&
+        _sourceFor(source, type).trimRight().endsWith('?');
   }
 
   _ConstructorParameterDecision _planMappedFieldParameter({

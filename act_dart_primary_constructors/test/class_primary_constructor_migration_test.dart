@@ -1208,6 +1208,70 @@ class Guarded(final String id) {
 ''');
     });
 
+    test('moves bodies that write public dependency properties', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/currency_api_client.dart', '''
+class CurrencyApiClient implements ApiClient {
+  CurrencyApiClient({required this.dio, required this.apiKey}) {
+    dio.options.baseUrl = 'https://api.currencyapi.com/v3';
+  }
+
+  final Dio dio;
+  final String apiKey;
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      final decoded = expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/currency_api_client.dart',
+        declarationName: 'CurrencyApiClient',
+      );
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(await formattedFile(root, 'lib/currency_api_client.dart'), '''
+class CurrencyApiClient({required final Dio dio, required final String apiKey})
+    implements ApiClient {
+  this {
+    dio.options.baseUrl = 'https://api.currencyapi.com/v3';
+  }
+}
+''');
+    });
+
+    test('moves bodies that write private dependency properties', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/frankfurter_client.dart', '''
+class FrankfurterClient implements ApiClient {
+  FrankfurterClient({required this._dio}) {
+    _dio.options.baseUrl = 'https://api.frankfurter.dev/v1';
+  }
+
+  final Dio _dio;
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      final decoded = expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/frankfurter_client.dart',
+        declarationName: 'FrankfurterClient',
+      );
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(await formattedFile(root, 'lib/frankfurter_client.dart'), '''
+class FrankfurterClient({required final Dio _dio}) implements ApiClient {
+  this {
+    _dio.options.baseUrl = 'https://api.frankfurter.dev/v1';
+  }
+}
+''');
+    });
+
     test(
       'preserves retained initializers and body statements together',
       () async {
@@ -1348,6 +1412,61 @@ class UnmappedFieldsProbe(final String id) {
   static const version = 1;
   final int revision = 1;
   late final String cachedLabel;
+}
+''');
+    });
+
+    test('retains nullable unmapped fake-state fields', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/fake_generator_service.dart', '''
+class _FakeGeneratorService implements RandomDataGeneratorService {
+  _FakeGeneratorService(this.result);
+
+  final RandomDataGenerationResult result;
+  int callCount = 0;
+  int? lastSeed;
+  DateTime? lastAnchorNow;
+
+  @override
+  Future<RandomDataGenerationResult> generateAndReplace({
+    int? seed,
+    DateTime? anchorNow,
+  }) async {
+    callCount += 1;
+    lastSeed = seed;
+    lastAnchorNow = anchorNow;
+    return result;
+  }
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      final decoded = expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/fake_generator_service.dart',
+        declarationName: '_FakeGeneratorService',
+      );
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(await formattedFile(root, 'lib/fake_generator_service.dart'), '''
+class _FakeGeneratorService(final RandomDataGenerationResult result)
+    implements RandomDataGeneratorService {
+  int callCount = 0;
+  int? lastSeed;
+  DateTime? lastAnchorNow;
+
+  @override
+  Future<RandomDataGenerationResult> generateAndReplace({
+    int? seed,
+    DateTime? anchorNow,
+  }) async {
+    callCount += 1;
+    lastSeed = seed;
+    lastAnchorNow = anchorNow;
+    return result;
+  }
 }
 ''');
     });

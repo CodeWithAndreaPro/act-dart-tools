@@ -52,68 +52,16 @@ JSON always includes skipped records.
 
 The CLI does not provide source diff output or include/exclude path flags in V1.
 
-## V1 Migration Scope
+## V1 Migration Rules
 
-The public V1 transform names are:
+See [Migration Rules](doc/migration_rules.md) for the supported V1 transforms,
+stable transform names, declaration skip reason codes, file and directory skip
+reason codes, and no-op behavior.
 
-- `primaryConstructor`
-- `constructorShorthand`
-- `emptyClassBody`
-
-`primaryConstructor` migrates eligible class and enhanced-enum constructors to
-primary constructors. It preserves modifiers, type parameters, bounds, clauses,
-parameter shape, nullability, defaults, required markers, private names, public
-call-site names for private named declaring parameters, and simple `super`
-parameters. `const` constructors remain explicit `const` primary constructors.
-
-Primary-constructor migration also supports conservative initializer handling.
-Safe parameter-only field initializer assignments may move to field declarations.
-Constructor assertions and unnamed `super(...)` initializers may be retained in a
-primary constructor body while preserving relative order. Constructor bodies may
-move only when they are not responsible for instance-field initialization.
-
-Enhanced-enum migration preserves enum value argument shape and retained enum
-members such as methods, getters, factories, and static members.
-
-`constructorShorthand` is the separate report transform for eligible generative
-constructors that remain in class bodies and can be rewritten to constructor
-declaration shorthand. Primary-constructor migration remains preferred where it
-is safe. Factory constructors are not rewritten to shorthand.
-
-`emptyClassBody` collapses truly empty ordinary class bodies to semicolon form,
-including classes made empty by primary-constructor migration. It does not apply
-to enums, mixins, extension types, or class bodies that contain comments.
-
-Already-primary declarations are treated as unchanged and are omitted from the
-migrated and skipped declaration arrays.
-
-## Conservative Skips
-
-The CLI skips rather than guesses when a migration could change semantics or
-move syntax to a different target.
-
-Major declaration skip categories include:
-
-- Constructor shape: multiple unnamed generative constructors, named generative
-  constructors for primary migration, external constructors, redirecting
-  constructors, unsupported constructor bodies, and non-empty bodies that
-  initialize instance fields.
-- Metadata and comments: constructor metadata, parameter metadata, field
-  metadata, constructor comments, ambiguous field comments, and body comments
-  that would be lost by empty-body collapse.
-- Field mapping: missing fields, static fields, `late` fields, external fields,
-  initialized fields, implicit field types, multi-variable field declarations,
-  and unsupported field modifiers.
-- Initializers: initializer entries that depend on instance state or unsupported
-  expressions, unsupported initializer shapes, and named `super` initializers.
-
-Generated Dart files are skipped with `generatedFile`. Whole subtrees are skipped
-and reported once for `nestedPackage`, `nestedRepository`, or
-`excludedDirectory`.
-
-Parse failure in any in-scope non-generated Dart file aborts the run before any
-writes. Transformed changed files are parsed in memory before any file is
-written. No-op and skip-only runs exit successfully.
+At a high level, V1 supports conservative primary-constructor migration for
+eligible classes and enhanced enums, constructor declaration shorthand for
+eligible constructors that remain in class bodies, and empty class-body collapse.
+The CLI skips rather than guesses when a migration could change semantics.
 
 ## JSON Report Contract
 

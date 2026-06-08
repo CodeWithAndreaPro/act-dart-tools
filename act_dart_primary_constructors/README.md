@@ -52,11 +52,14 @@ JSON always includes skipped records.
 
 The CLI does not provide source diff output or include/exclude path flags in V1.
 
-## V1 Migration Rules
+## Package Docs
 
 See [Migration Rules](doc/migration_rules.md) for the supported V1 transforms,
 stable transform names, declaration skip reason codes, file and directory skip
 reason codes, and no-op behavior.
+
+See [Architecture Overview](doc/architecture.md) for the CLI pipeline,
+responsibility boundaries, write-safety checks, and report-generation flow.
 
 At a high level, V1 supports conservative primary-constructor migration for
 eligible classes and enhanced enums, constructor declaration shorthand for

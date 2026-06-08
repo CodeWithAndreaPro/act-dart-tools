@@ -16,3 +16,6 @@ the tool leaves the source unchanged and reports a precise skip reason.
 This repository is the active development source. The package is periodically
 synced into the ACT primary-constructor skill bundle for distribution; sync
 workflow changes are tracked separately from CLI feature work.
+
+See [`act_dart_primary_constructors/README.md`](act_dart_primary_constructors/README.md)
+for CLI usage and package-local documentation.

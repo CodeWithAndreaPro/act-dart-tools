@@ -17,6 +17,11 @@ Future<int> runDartPrimaryConstructors(
   final err = stderr ?? io.stderr;
 
   try {
+    if (arguments.length == 1 && arguments.single == '--help') {
+      out.write(_rootHelpOutput);
+      return exitSuccess;
+    }
+
     if (arguments.length == 1 && arguments.single == '--version') {
       out.writeln(packageVersion);
       return exitSuccess;
@@ -58,6 +63,11 @@ Future<int> _runMigrate(
   required StringSink stderr,
   required TargetPackageRunner runner,
 }) async {
+  if (arguments.contains('--help')) {
+    stdout.write(_migrateHelpOutput);
+    return exitSuccess;
+  }
+
   final parser = ArgParser()
     ..addOption('mode', defaultsTo: 'safe', allowed: const ['safe'])
     ..addFlag(
@@ -131,6 +141,32 @@ Future<int> _runMigrate(
   }
   return outcome.exitCode;
 }
+
+const _rootHelpOutput =
+    '''Usage: dart run act_dart_primary_constructors <command> [arguments]
+
+Options:
+  --version    Print the package version.
+  --help       Print this help output.
+
+Available commands:
+  migrate      Migrate Dart declarations to primary-constructor syntax.
+''';
+
+const _migrateHelpOutput =
+    '''Usage: dart run act_dart_primary_constructors migrate [target-package] [options]
+
+Arguments:
+  target-package  Optional Target package root. Defaults to the current directory (.).
+
+Options:
+  --mode safe          Migration mode. safe is currently the only supported mode.
+  --dry-run            Plan the migration without writing files.
+  --json               Emit a machine-readable JSON report for migration output.
+                       Does not affect help output; help is always plain text.
+  --include-skipped    Include skipped declarations in text output.
+  --help               Print this help output.
+''';
 
 int _writeError(
   CliErrorReport report,

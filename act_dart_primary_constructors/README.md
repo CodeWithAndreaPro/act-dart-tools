@@ -25,6 +25,17 @@ dart run act_dart_primary_constructors migrate <target-package> --dry-run
 dart run act_dart_primary_constructors migrate <target-package> --include-skipped
 ```
 
+For maximum speed, build an AOT-compiled executable from this package root and
+run the generated binary instead of `dart run`:
+
+```bash
+dart compile exe bin/act_dart_primary_constructors.dart
+./bin/act_dart_primary_constructors.exe migrate <target-package> --json
+```
+
+This avoids repeated `dart run` startup overhead and is useful for repeated or
+large migration runs.
+
 The root command supports no-argument help output, `--version`, and `migrate`.
 Running the executable without arguments prints concise usage, target package
 behavior, and migrate options. The CLI does not expose a `--help` flag. Help

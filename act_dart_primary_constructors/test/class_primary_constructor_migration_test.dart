@@ -50,6 +50,30 @@ class User(final String id, final int age);
 ''');
     });
 
+    test('preserves field-formal parameter metadata', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/parameter_metadata.dart', '''
+class ParameterMetadataProbe {
+  final String id;
+
+  ParameterMetadataProbe(@Deprecated('fixture') this.id);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/parameter_metadata.dart',
+        declarationName: 'ParameterMetadataProbe',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/parameter_metadata.dart'), '''
+class ParameterMetadataProbe(@Deprecated('fixture') final String id);
+''');
+    });
+
     test('migrates mutable field-formal parameters', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -67,6 +91,75 @@ class Counter {
       expect(result.stderr, isEmpty);
       expect(await formattedFile(root, 'lib/counter.dart'), '''
 class Counter(var int count);
+''');
+    });
+
+    test('migrates multi-variable fields when all variables map', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/multi_variable.dart', '''
+class MultiVariableAllMappedProbe {
+  String id, name;
+
+  MultiVariableAllMappedProbe(this.id, this.name);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/multi_variable.dart',
+        declarationName: 'MultiVariableAllMappedProbe',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/multi_variable.dart'), '''
+class MultiVariableAllMappedProbe(var String id, var String name);
+''');
+    });
+
+    test('migrates post-initialization mutable field body writes', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/field_write.dart', '''
+class FieldWriteCombinationProbe {
+  int count;
+
+  FieldWriteCombinationProbe(this.count, int delta) {
+    count = count + delta;
+    ++count;
+    count++;
+    count += delta;
+    void nested() {
+      count++;
+    }
+
+    nested();
+  }
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/field_write.dart',
+        declarationName: 'FieldWriteCombinationProbe',
+      );
+      expect(await formattedFile(root, 'lib/field_write.dart'), '''
+class FieldWriteCombinationProbe(var int count, int delta) {
+  this {
+    count = count + delta;
+    ++count;
+    count++;
+    count += delta;
+    void nested() {
+      count++;
+    }
+
+    nested();
+  }
+}
 ''');
     });
 
@@ -791,6 +884,36 @@ class AppRobot(final WidgetTester tester) {
 ''');
     });
 
+    test(
+      'moves named constructor-call initializer assignments to fields',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/pattern_wrapper.dart', '''
+class NamedConstructorCallInitializerProbe {
+  final String pattern;
+  final PatternWrapper wrapper;
+
+  NamedConstructorCallInitializerProbe(this.pattern)
+      : wrapper = PatternWrapper.named(pattern);
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/pattern_wrapper.dart',
+          declarationName: 'NamedConstructorCallInitializerProbe',
+        );
+        expect(await formattedFile(root, 'lib/pattern_wrapper.dart'), '''
+class NamedConstructorCallInitializerProbe(final String pattern) {
+  final PatternWrapper wrapper = PatternWrapper.named(pattern);
+}
+''');
+      },
+    );
+
     test('retains assert initializers in primary constructor body', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -868,6 +991,56 @@ class Pair(final int value) {
       },
     );
 
+    test('rewrites retained redirecting constructors with metadata', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class RedirectingMetadataProbe {
+  final String id;
+
+  RedirectingMetadataProbe(this.id);
+
+  @Deprecated('fixture')
+  RedirectingMetadataProbe.zero() : this('0');
+}
+''';
+      writeFile(root, 'lib/redirecting_metadata.dart', originalSource);
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], ['lib/redirecting_metadata.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/redirecting_metadata.dart',
+          'declarationKind': 'class',
+          'declarationName': 'RedirectingMetadataProbe',
+          'transform': 'primaryConstructor',
+          'offset': 0,
+        },
+        {
+          'path': 'lib/redirecting_metadata.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'RedirectingMetadataProbe.zero',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('@Deprecated'),
+        },
+      ]);
+      expect(decoded['skippedDeclarations'], isEmpty);
+      expect(decoded['transformCounts'], {
+        'primaryConstructor': 1,
+        'constructorShorthand': 1,
+      });
+      expect(await formattedFile(root, 'lib/redirecting_metadata.dart'), '''
+class RedirectingMetadataProbe(final String id) {
+  @Deprecated('fixture')
+  new zero() : this('0');
+}
+''');
+    });
+
     test(
       'retains unnamed super initializers in primary constructor body',
       () async {
@@ -903,6 +1076,62 @@ class Widget {
 ''');
       },
     );
+
+    test(
+      'retains named super initializers in primary constructor body',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/named_super.dart', '''
+class NamedSuperInitializerProbe extends ParentProbe {
+  final String id;
+
+  NamedSuperInitializerProbe(this.id) : super.named();
+}
+''');
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/named_super.dart',
+          declarationName: 'NamedSuperInitializerProbe',
+        );
+        expect(await formattedFile(root, 'lib/named_super.dart'), '''
+class NamedSuperInitializerProbe(final String id) extends ParentProbe {
+  this : super.named();
+}
+''');
+      },
+    );
+
+    test('preserves named super initializer order', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/ordered_named_super.dart', '''
+class OrderedNamedSuper extends Base {
+  final int value;
+
+  OrderedNamedSuper(this.value)
+      : assert(value > 0),
+        super.named(value),
+        assert(value.isFinite);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/ordered_named_super.dart',
+        declarationName: 'OrderedNamedSuper',
+      );
+      expect(await formattedFile(root, 'lib/ordered_named_super.dart'), '''
+class OrderedNamedSuper(final int value) extends Base {
+  this : assert(value > 0), super.named(value), assert(value.isFinite);
+}
+''');
+    });
 
     test('preserves retained initializer relative order', () async {
       final root = await createPackageRoot();
@@ -1092,6 +1321,36 @@ class Tracker() {
 ''');
       },
     );
+
+    test('retains initialized late and static unmapped fields', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/unmapped_fields.dart', '''
+class UnmappedFieldsProbe {
+  static const version = 1;
+  final String id;
+  final int revision = 1;
+  late final String cachedLabel;
+
+  UnmappedFieldsProbe(this.id);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/unmapped_fields.dart',
+        declarationName: 'UnmappedFieldsProbe',
+      );
+      expect(await formattedFile(root, 'lib/unmapped_fields.dart'), '''
+class UnmappedFieldsProbe(final String id) {
+  static const version = 1;
+  final int revision = 1;
+  late final String cachedLabel;
+}
+''');
+    });
 
     test('moves bodies that write local variables shadowing fields', () async {
       final root = await createPackageRoot();

@@ -37,6 +37,64 @@ enum HttpStatus(final int code) {
 ''');
     });
 
+    test('preserves optional positional field-formal defaults', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/severity.dart', '''
+enum SeverityProbe {
+  low(),
+  high(2);
+
+  final int level;
+
+  const SeverityProbe([this.level = 1]);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/severity.dart',
+        declarationKind: 'enum',
+        declarationName: 'SeverityProbe',
+      );
+      expect(await formattedFile(root, 'lib/severity.dart'), '''
+enum SeverityProbe([final int level = 1]) {
+  low(),
+  high(2);
+}
+''');
+    });
+
+    test('migrates multi-variable fields when all variables map', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/enum_multi_variable.dart', '''
+enum EnumMultiVariableProbe {
+  one(1, 10);
+
+  final int code, weight;
+
+  const EnumMultiVariableProbe(this.code, this.weight);
+}
+''');
+
+      final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/enum_multi_variable.dart',
+        declarationKind: 'enum',
+        declarationName: 'EnumMultiVariableProbe',
+      );
+      expect(await formattedFile(root, 'lib/enum_multi_variable.dart'), '''
+enum EnumMultiVariableProbe(final int code, final int weight) {
+  one(1, 10);
+}
+''');
+    });
+
     test('migrates named field-formal constructors', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -227,6 +285,74 @@ enum Guarded(final String id) {
   });
 
   group('enum primary constructor skip reporting', () {
+    test('skips field metadata precisely', () async {
+      const originalSource = '''
+enum EnumFieldMetadataProbe {
+  one('1');
+
+  @Deprecated('fixture')
+  final String id;
+
+  const EnumFieldMetadataProbe(this.id);
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/enum_metadata.dart',
+        originalSource: originalSource,
+        declarationKind: 'enum',
+        declarationName: 'EnumFieldMetadataProbe',
+        reason: 'fieldMetadata',
+        message: 'Field metadata is not moved to declaring parameters.',
+      );
+    });
+
+    for (final scenario in [
+      (
+        name: 'partial multi-variable fields',
+        declarationName: 'EnumPartialMultiVariableProbe',
+        source: '''
+enum EnumPartialMultiVariableProbe {
+  one(1);
+
+  final int code, weight;
+
+  const EnumPartialMultiVariableProbe(this.code);
+}
+''',
+        reason: 'multipleFieldVariables',
+        message:
+            'Multi-variable field declarations cannot become declaring parameters.',
+      ),
+      (
+        name: 'trailing field comments',
+        declarationName: 'EnumTrailingFieldCommentProbe',
+        source: '''
+enum EnumTrailingFieldCommentProbe {
+  one('1');
+
+  final String id; // Stable identifier.
+
+  const EnumTrailingFieldCommentProbe(this.id);
+}
+''',
+        reason: 'fieldComment',
+        message:
+            'Ambiguous field comments are not moved to declaring parameters.',
+      ),
+    ]) {
+      test('skips ${scenario.name} precisely', () async {
+        await expectSinglePrimaryConstructorSkip(
+          relativePath: 'lib/enum_field.dart',
+          originalSource: scenario.source,
+          declarationKind: 'enum',
+          declarationName: scenario.declarationName,
+          reason: scenario.reason,
+          message: scenario.message,
+        );
+      });
+    }
+
     test('skips unsupported initializer cases precisely', () async {
       const originalSource = '''
 enum DuplicateInitializer {

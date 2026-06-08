@@ -109,11 +109,6 @@ final class _ConstructorInitializationPlanner {
         );
       }
       if (initializer is SuperConstructorInvocation) {
-        if (initializer.constructorName != null) {
-          return const _SkippedConstructorInitialization(
-            DeclarationSkipReason.namedSuperInitializer,
-          );
-        }
         retainedInitializers.add(initializer);
         continue;
       }
@@ -202,27 +197,61 @@ final class _ConstructorInitializationPlanner {
         constructor.constKeyword != null) {
       return DeclarationSkipReason.unsupportedConstructorBody;
     }
-    if (_bodyWritesInstanceField(body)) {
+    if (_bodyFieldWriteSkipReason(body) case final skipReason?) {
+      return skipReason;
+    }
+    return null;
+  }
+
+  DeclarationSkipReason? _bodyFieldWriteSkipReason(BlockFunctionBody body) {
+    final writeResult = _bodyFieldWrites(body);
+    if (!writeResult.hasWrites) {
+      return null;
+    }
+
+    final mutableFieldFormalNames = _mutableFieldFormalNames();
+    if (writeResult.hasUnsafeWrite ||
+        !mutableFieldFormalNames.containsAll(writeResult.fieldNames)) {
       return DeclarationSkipReason.fieldInitializingConstructorBody;
     }
     return null;
   }
 
-  bool _bodyWritesInstanceField(BlockFunctionBody body) {
+  _FieldWriteResult _bodyFieldWrites(BlockFunctionBody body) {
     final fieldNames = {
       for (final member in bodyInfo.members.whereType<FieldDeclaration>())
         if (!member.isStatic)
           for (final variable in member.fields.variables) variable.name.lexeme,
     };
     if (fieldNames.isEmpty) {
-      return false;
+      return const _FieldWriteResult();
     }
     final visitor = _FieldWriteVisitor(
       fieldNames,
       _constructorBodyLocalNames(),
     );
     body.accept(visitor);
-    return visitor.hasFieldWrite;
+    return visitor.result;
+  }
+
+  Set<String> _mutableFieldFormalNames() {
+    final fieldFormalNames = _fieldFormalParameterNames(constructor.parameters);
+    return {
+      for (final fieldName in fieldFormalNames)
+        if (_isMutableInstanceField(fieldName)) fieldName,
+    };
+  }
+
+  bool _isMutableInstanceField(String fieldName) {
+    final field = _fieldDeclarationFor(bodyInfo, fieldName);
+    if (field == null) {
+      return false;
+    }
+    final (member, fieldList, variable) = field;
+    return !member.isStatic &&
+        !fieldList.isFinal &&
+        variable.initializer == null &&
+        fieldList.type != null;
   }
 
   Set<String> _constructorBodyLocalNames() {
@@ -357,6 +386,12 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
       node.argumentList.accept(this);
       return;
     }
+    if (node.target case SimpleIdentifier(
+      :final token,
+    ) when _startsWithUppercase(token.lexeme)) {
+      node.argumentList.accept(this);
+      return;
+    }
     super.visitMethodInvocation(node);
   }
 
@@ -411,13 +446,21 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
 
   final Set<String> fieldNames;
   final List<Set<String>> _scopes;
-  bool hasFieldWrite = false;
+  final Set<String> _writtenFieldNames = <String>{};
+  bool _hasUnsafeWrite = false;
+
+  _FieldWriteResult get result => _FieldWriteResult(
+    fieldNames: _writtenFieldNames,
+    hasUnsafeWrite: _hasUnsafeWrite,
+  );
+
+  bool get _done => _hasUnsafeWrite;
 
   @override
   void visitBlock(Block node) {
     _withScope(() {
       for (final statement in node.statements) {
-        if (hasFieldWrite) {
+        if (_done) {
           return;
         }
         statement.accept(this);
@@ -428,7 +471,7 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitAssignmentExpression(AssignmentExpression node) {
     _checkWriteTarget(node.leftHandSide);
-    if (!hasFieldWrite) {
+    if (!_done) {
       super.visitAssignmentExpression(node);
     }
   }
@@ -438,7 +481,7 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
     if (node.operator.lexeme == '++' || node.operator.lexeme == '--') {
       _checkWriteTarget(node.operand);
     }
-    if (!hasFieldWrite) {
+    if (!_done) {
       super.visitPostfixExpression(node);
     }
   }
@@ -448,7 +491,7 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
     if (node.operator.lexeme == '++' || node.operator.lexeme == '--') {
       _checkWriteTarget(node.operand);
     }
-    if (!hasFieldWrite) {
+    if (!_done) {
       super.visitPrefixExpression(node);
     }
   }
@@ -496,11 +539,16 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
   }
 
   void _checkWriteTarget(Expression target) {
-    final fieldName = _fieldWriteTargetName(target);
-    if (fieldName != null &&
-        fieldNames.contains(fieldName) &&
-        (_isExplicitThisTarget(target) || !_isLocalName(fieldName))) {
-      hasFieldWrite = true;
+    final targetName = _fieldWriteTargetName(target);
+    if (targetName == null) {
+      if (_maybeUnresolvedFieldWrite(target)) {
+        _hasUnsafeWrite = true;
+      }
+      return;
+    }
+    if (fieldNames.contains(targetName) &&
+        (_isExplicitThisTarget(target) || !_isLocalName(targetName))) {
+      _writtenFieldNames.add(targetName);
     }
   }
 
@@ -516,6 +564,11 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
       return target.propertyName.token.lexeme;
     }
     return null;
+  }
+
+  bool _maybeUnresolvedFieldWrite(Expression target) {
+    target = _unparenthesized(target);
+    return target is PrefixedIdentifier || target is PropertyAccess;
   }
 
   bool _isExplicitThisTarget(Expression target) {
@@ -537,7 +590,7 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
     for (final variable in variables.variables) {
       variable.initializer?.accept(this);
       _declare(variable.name.lexeme);
-      if (hasFieldWrite) {
+      if (_done) {
         return;
       }
     }
@@ -546,7 +599,7 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
   void _visitForLoop(ForLoopParts forLoopParts, AstNode body) {
     _withScope(() {
       _visitForLoopParts(forLoopParts);
-      if (!hasFieldWrite) {
+      if (!_done) {
         body.accept(this);
       }
     });
@@ -574,12 +627,12 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
   }
 
   void _visitForPartsRemainder(ForParts parts) {
-    if (hasFieldWrite) {
+    if (_done) {
       return;
     }
     parts.condition?.accept(this);
     for (final updater in parts.updaters) {
-      if (hasFieldWrite) {
+      if (_done) {
         return;
       }
       updater.accept(this);
@@ -621,4 +674,16 @@ class _FieldWriteVisitor extends RecursiveAstVisitor<void> {
       _scopes.removeLast();
     }
   }
+}
+
+class _FieldWriteResult {
+  const _FieldWriteResult({
+    this.fieldNames = const <String>{},
+    this.hasUnsafeWrite = false,
+  });
+
+  final Set<String> fieldNames;
+  final bool hasUnsafeWrite;
+
+  bool get hasWrites => fieldNames.isNotEmpty || hasUnsafeWrite;
 }

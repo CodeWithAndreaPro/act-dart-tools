@@ -12,6 +12,7 @@ final class _FieldToParameterPlanner {
   final Map<String, String> privateFieldInitializersByName;
   final Set<String> _usedFieldNames = <String>{};
   final Set<String> _usedPrivateInitializers = <String>{};
+  bool _usedRegularPassthroughParameter = false;
 
   bool get _hasUnusedPrivateFieldInitializers {
     return _usedPrivateInitializers.length !=
@@ -22,13 +23,14 @@ final class _FieldToParameterPlanner {
     required FormalParameterList parameters,
     required List<_FieldInitializerMigration> fieldInitializers,
   }) {
+    final fieldFormalNames = _fieldFormalParameterNames(parameters);
     final parameterPlans = <_ParameterMigrationPlan>[];
     for (final parameter in parameters.parameters) {
       final parameterDecision =
           parameter is SuperFormalParameter &&
               _isSimpleSuperFormalParameter(parameter)
           ? const _PlannedConstructorParameter(_ParameterMigrationPlan())
-          : _decideParameter(parameter);
+          : _decideParameter(parameter, fieldFormalNames: fieldFormalNames);
       switch (parameterDecision) {
         case _PlannedConstructorParameter(:final plan):
           parameterPlans.add(plan);
@@ -49,23 +51,42 @@ final class _FieldToParameterPlanner {
         );
       }
     }
+    if (_usedRegularPassthroughParameter &&
+        _usedFieldNames.isEmpty &&
+        _usedPrivateInitializers.isEmpty &&
+        fieldInitializers.isEmpty) {
+      return const _SkippedFieldToParameter(
+        DeclarationSkipReason.unsupportedParameterShape,
+      );
+    }
+    if (_hasUninitializedUnmappedFields(fieldInitializers)) {
+      return const _SkippedFieldToParameter(
+        DeclarationSkipReason.unsupportedParameterShape,
+      );
+    }
 
     return _PlannedFieldToParameter(parameterPlans);
   }
 
-  _ConstructorParameterDecision _decideParameter(FormalParameter parameter) {
-    if (parameter.metadata.isNotEmpty) {
+  _ConstructorParameterDecision _decideParameter(
+    FormalParameter parameter, {
+    required Set<String> fieldFormalNames,
+  }) {
+    if (parameter.metadata.isNotEmpty && parameter is! FieldFormalParameter) {
       return const _SkippedConstructorParameter(
         DeclarationSkipReason.parameterMetadata,
       );
     }
 
     if (parameter is FieldFormalParameter) {
-      return _decideFieldFormalParameter(parameter);
+      return _decideFieldFormalParameter(
+        parameter,
+        fieldFormalNames: fieldFormalNames,
+      );
     }
 
     if (parameter is RegularFormalParameter) {
-      return _decidePrivateNamedFieldParameter(parameter);
+      return _decideRegularParameter(parameter);
     }
 
     return const _SkippedConstructorParameter(
@@ -74,8 +95,9 @@ final class _FieldToParameterPlanner {
   }
 
   _ConstructorParameterDecision _decideFieldFormalParameter(
-    FieldFormalParameter parameter,
-  ) {
+    FieldFormalParameter parameter, {
+    required Set<String> fieldFormalNames,
+  }) {
     if (!_isSimpleFieldFormalParameter(parameter)) {
       return const _SkippedConstructorParameter(
         DeclarationSkipReason.unsupportedParameterShape,
@@ -83,7 +105,10 @@ final class _FieldToParameterPlanner {
     }
 
     final fieldName = parameter.name.lexeme;
-    final fieldClassification = _classifyMappedField(fieldName);
+    final fieldClassification = _classifyMappedField(
+      fieldName,
+      fieldFormalNames: fieldFormalNames,
+    );
     if (fieldClassification.skipReason case final reason?) {
       return _SkippedConstructorParameter(reason);
     }
@@ -101,7 +126,7 @@ final class _FieldToParameterPlanner {
     );
   }
 
-  _ConstructorParameterDecision _decidePrivateNamedFieldParameter(
+  _ConstructorParameterDecision _decideRegularParameter(
     RegularFormalParameter parameter,
   ) {
     if (!_isSimpleRegularFormalParameter(parameter)) {
@@ -110,22 +135,30 @@ final class _FieldToParameterPlanner {
       );
     }
 
+    final privateFieldDecision = _decidePrivateNamedFieldParameter(parameter);
+    if (privateFieldDecision != null) {
+      return privateFieldDecision;
+    }
+
+    _usedRegularPassthroughParameter = true;
+    return const _PlannedConstructorParameter(_ParameterMigrationPlan());
+  }
+
+  _ConstructorParameterDecision? _decidePrivateNamedFieldParameter(
+    RegularFormalParameter parameter,
+  ) {
     final parameterName = parameter.name?.lexeme;
     final parameterType = parameter.type;
     if (parameterName == null ||
         parameterName.startsWith('_') ||
         parameterType == null ||
         !parameter.isNamed) {
-      return const _SkippedConstructorParameter(
-        DeclarationSkipReason.unsupportedParameterShape,
-      );
+      return null;
     }
 
     final fieldName = '_$parameterName';
     if (privateFieldInitializersByName[fieldName] != parameterName) {
-      return const _SkippedConstructorParameter(
-        DeclarationSkipReason.unsupportedParameterShape,
-      );
+      return null;
     }
 
     final fieldClassification = _classifyMappedField(fieldName);
@@ -154,6 +187,30 @@ final class _FieldToParameterPlanner {
       _usedPrivateInitializers.add(fieldName);
     }
     return parameterDecision;
+  }
+
+  bool _hasUninitializedUnmappedFields(
+    List<_FieldInitializerMigration> fieldInitializers,
+  ) {
+    final fieldInitializerNames = {
+      for (final fieldInitializer in fieldInitializers)
+        fieldInitializer.fieldName,
+    };
+    for (final member in bodyInfo.members.whereType<FieldDeclaration>()) {
+      if (member.isStatic ||
+          member.fields.isLate ||
+          member.externalKeyword != null) {
+        continue;
+      }
+      for (final variable in member.fields.variables) {
+        if (variable.initializer == null &&
+            !_usedFieldNames.contains(variable.name.lexeme) &&
+            !fieldInitializerNames.contains(variable.name.lexeme)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   _ConstructorParameterDecision _planMappedFieldParameter({
@@ -190,11 +247,15 @@ final class _FieldToParameterPlanner {
     );
   }
 
-  _FieldToParameterFieldClassification _classifyMappedField(String fieldName) {
+  _FieldToParameterFieldClassification _classifyMappedField(
+    String fieldName, {
+    Set<String> fieldFormalNames = const <String>{},
+  }) {
     return _classifyFieldToParameterField(
       source: source,
       bodyInfo: bodyInfo,
       fieldName: fieldName,
+      fieldFormalNames: fieldFormalNames,
     );
   }
 }
@@ -247,6 +308,7 @@ _FieldToParameterFieldClassification _classifyFieldToParameterField({
   required String source,
   required _DeclarationBodyInfo bodyInfo,
   required String fieldName,
+  Set<String> fieldFormalNames = const <String>{},
 }) {
   final field = _fieldDeclarationFor(bodyInfo, fieldName);
   if (field == null) {
@@ -271,14 +333,9 @@ _FieldToParameterFieldClassification _classifyFieldToParameterField({
       DeclarationSkipReason.externalField,
     );
   }
-  if (fieldList.variables.length != 1) {
-    return const _FieldToParameterFieldClassification.skip(
-      DeclarationSkipReason.multipleFieldVariables,
-    );
-  }
   if (member.metadata.isNotEmpty ||
       fieldList.metadata.isNotEmpty ||
-      variable.metadata.isNotEmpty) {
+      fieldList.variables.any((variable) => variable.metadata.isNotEmpty)) {
     return const _FieldToParameterFieldClassification.skip(
       DeclarationSkipReason.fieldMetadata,
     );
@@ -294,7 +351,19 @@ _FieldToParameterFieldClassification _classifyFieldToParameterField({
       DeclarationSkipReason.fieldComment,
     );
   }
-  if (variable.initializer != null) {
+  if (fieldList.variables.length != 1) {
+    if (!_allFieldVariablesMappedByFieldFormals(fieldList, fieldFormalNames)) {
+      return const _FieldToParameterFieldClassification.skip(
+        DeclarationSkipReason.multipleFieldVariables,
+      );
+    }
+    if (commentMigration.source != null) {
+      return const _FieldToParameterFieldClassification.skip(
+        DeclarationSkipReason.fieldComment,
+      );
+    }
+  }
+  if (fieldList.variables.any((variable) => variable.initializer != null)) {
     return const _FieldToParameterFieldClassification.skip(
       DeclarationSkipReason.initializedField,
     );
@@ -374,12 +443,30 @@ String _declaringParameterSource(
 }
 
 bool _isSimpleFieldFormalParameter(FieldFormalParameter parameter) {
-  return parameter.metadata.isEmpty &&
-      parameter.documentationComment == null &&
+  return parameter.documentationComment == null &&
       parameter.constFinalOrVarKeyword == null &&
       parameter.covariantKeyword == null &&
       parameter.type == null &&
       parameter.functionTypedSuffix == null;
+}
+
+Set<String> _fieldFormalParameterNames(FormalParameterList parameters) {
+  return {
+    for (final parameter in parameters.parameters)
+      if (parameter is FieldFormalParameter) parameter.name.lexeme,
+  };
+}
+
+bool _allFieldVariablesMappedByFieldFormals(
+  VariableDeclarationList fields,
+  Set<String> fieldFormalNames,
+) {
+  for (final variable in fields.variables) {
+    if (!fieldFormalNames.contains(variable.name.lexeme)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool _isSimpleRegularFormalParameter(RegularFormalParameter parameter) {

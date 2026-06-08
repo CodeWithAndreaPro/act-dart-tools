@@ -487,6 +487,75 @@ class ShorthandSafety {
 ''');
     });
 
+    test(
+      'keeps factory constructors and rewrites documented external shorthand',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
+class ConstructorShorthandRegression {
+  const ConstructorShorthandRegression.named();
+
+  /// External hook.
+  external ConstructorShorthandRegression.hook();
+
+  factory ConstructorShorthandRegression.factoryConstructor() => ConstructorShorthandRegression.named();
+}
+''';
+        writeFile(
+          root,
+          'lib/constructor_shorthand_regression.dart',
+          originalSource,
+        );
+
+        final result = await runCli(['migrate', '--root', root.path, '--json']);
+
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], [
+          'lib/constructor_shorthand_regression.dart',
+        ]);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/constructor_shorthand_regression.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'ConstructorShorthandRegression.named',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf(
+              'const ConstructorShorthandRegression.named',
+            ),
+          },
+          {
+            'path': 'lib/constructor_shorthand_regression.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'ConstructorShorthandRegression.hook',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('/// External hook.'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], isEmpty);
+        expect(decoded['transformCounts'], {'constructorShorthand': 2});
+        expect(
+          await formattedFile(
+            root,
+            'lib/constructor_shorthand_regression.dart',
+          ),
+          '''
+class ConstructorShorthandRegression {
+  const new named();
+
+  /// External hook.
+  external new hook();
+
+  factory ConstructorShorthandRegression.factoryConstructor() =>
+      ConstructorShorthandRegression.named();
+}
+''',
+        );
+      },
+    );
+
     for (final scenario in [
       (
         name: 'external unnamed constructor',
@@ -551,28 +620,6 @@ class ConstructorDocumentationComment {
 
   /// Constructor comment.
   new(this.id);
-}
-''',
-      ),
-      (
-        name: 'parameter metadata',
-        relativePath: 'lib/parameter_metadata.dart',
-        declarationName: 'ParameterMetadata',
-        reason: 'parameterMetadata',
-        message: 'Parameter metadata is not moved to declaring parameters.',
-        offsetNeedle: 'ParameterMetadata(@deprecated this.id)',
-        source: '''
-class ParameterMetadata {
-  final String id;
-
-  ParameterMetadata(@deprecated this.id);
-}
-''',
-        expectedFormatted: '''
-class ParameterMetadata {
-  final String id;
-
-  new(@deprecated this.id);
 }
 ''',
       ),
@@ -844,6 +891,21 @@ class MultiVariableMappedField {
 }
 ''',
       ),
+      (
+        name: 'multi-variable field with shared comments',
+        declarationName: 'MultiVariableCommentedField',
+        reason: 'fieldComment',
+        message:
+            'Ambiguous field comments are not moved to declaring parameters.',
+        source: '''
+class MultiVariableCommentedField {
+  /// Shared identity fields.
+  final String id, name;
+
+  MultiVariableCommentedField(this.id, this.name);
+}
+''',
+      ),
     ]) {
       test('skips ${scenario.name} precisely', () async {
         await expectSinglePrimaryConstructorSkip(
@@ -1042,24 +1104,6 @@ class Base(final Object value);
       );
     });
 
-    test('skips named super initializer cases precisely', () async {
-      const originalSource = '''
-class Child extends Parent {
-  final String id;
-
-  Child(this.id) : super.named();
-}
-''';
-
-      await expectSinglePrimaryConstructorSkip(
-        relativePath: 'lib/super.dart',
-        originalSource: originalSource,
-        declarationName: 'Child',
-        reason: 'namedSuperInitializer',
-        message: 'Named super constructor initializers are not supported.',
-      );
-    });
-
     test('skips assignment-in-body field initialization precisely', () async {
       const originalSource = '''
 class FieldInitializingBody {
@@ -1083,56 +1127,40 @@ class FieldInitializingBody {
 
     for (final scenario in [
       (
-        name: 'direct field writes',
-        declarationName: 'DirectFieldWriteBody',
+        name: 'final field writes',
+        declarationName: 'FinalFieldWriteBody',
         source: '''
-class DirectFieldWriteBody {
-  int count;
+class FinalFieldWriteBody {
+  final int count;
 
-  DirectFieldWriteBody(this.count, int delta) {
-    count = count + delta;
-  }
-}
-''',
-      ),
-      (
-        name: 'prefix field writes',
-        declarationName: 'PrefixFieldWriteBody',
-        source: '''
-class PrefixFieldWriteBody {
-  int count;
-
-  PrefixFieldWriteBody(this.count) {
-    ++count;
-  }
-}
-''',
-      ),
-      (
-        name: 'postfix field writes',
-        declarationName: 'PostfixFieldWriteBody',
-        source: '''
-class PostfixFieldWriteBody {
-  int count;
-
-  PostfixFieldWriteBody(this.count) {
+  FinalFieldWriteBody(this.count) {
     count++;
   }
 }
 ''',
       ),
       (
-        name: 'nested field writes',
-        declarationName: 'NestedFieldWriteBody',
+        name: 'unmapped field writes',
+        declarationName: 'UnmappedFieldWriteBody',
         source: '''
-class NestedFieldWriteBody {
+class UnmappedFieldWriteBody {
   int count;
 
-  NestedFieldWriteBody(this.count) {
-    void increment() {
-      count++;
-    }
-    increment();
+  UnmappedFieldWriteBody(int start) {
+    count = start;
+  }
+}
+''',
+      ),
+      (
+        name: 'unresolved write targets',
+        declarationName: 'UnresolvedWriteTargetBody',
+        source: '''
+class UnresolvedWriteTargetBody {
+  int count;
+
+  UnresolvedWriteTargetBody(this.count, dynamic target) {
+    target.count = count;
   }
 }
 ''',
@@ -1149,26 +1177,5 @@ class NestedFieldWriteBody {
         );
       });
     }
-
-    test('skips compound field writes in constructor bodies precisely', () async {
-      const originalSource = '''
-class CompoundFieldWriteBody {
-  int count;
-
-  CompoundFieldWriteBody(this.count, int delta) {
-    count += delta;
-  }
-}
-''';
-
-      await expectSinglePrimaryConstructorSkip(
-        relativePath: 'lib/body_field_write.dart',
-        originalSource: originalSource,
-        declarationName: 'CompoundFieldWriteBody',
-        reason: 'fieldInitializingConstructorBody',
-        message:
-            'Constructor bodies that initialize instance fields are not supported.',
-      );
-    });
   });
 }

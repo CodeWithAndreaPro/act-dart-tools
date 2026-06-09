@@ -20,6 +20,54 @@ Migrated primary-constructor output is experimental Dart syntax. Analyzer,
 formatting, running, and testing support for that syntax is configured and
 verified outside this CLI.
 
+## Before Using The Tool
+
+These prerequisites are specific to the `primary-constructors` Migration
+Subcommand.
+
+Run the migration on a Target Package that already compiles without errors.
+
+Set the Target Package Dart SDK constraint to 3.12 or higher in `pubspec.yaml`:
+
+```yaml
+environment:
+  sdk: ^3.12.0
+```
+
+Enable the `primary-constructors` experiment in the Target Package
+`analysis_options.yaml` file:
+
+```yaml
+analyzer:
+  enable-experiment:
+    - primary-constructors
+```
+
+Analyzer, run, test, and format commands that process migrated source need the
+primary-constructor experiment flag:
+
+```bash
+flutter run --enable-experiment=primary-constructors
+flutter test --enable-experiment=primary-constructors
+dart format --enable-experiment=primary-constructors <changed-dart-files>
+```
+
+Each relevant `.vscode/launch.json` configuration should also contain the
+`--enable-experiment=primary-constructors` flag:
+
+```json
+{
+  "name": "example_app",
+  "request": "launch",
+  "type": "dart",
+  "args": ["--enable-experiment=primary-constructors"]
+}
+```
+
+Before running the migration, fix analyzer errors and warnings in the Target
+Package. Some lint-based warnings can be fixed with `dart fix --apply`; others
+need manual changes.
+
 ## Usage
 
 Run the CLI like this:

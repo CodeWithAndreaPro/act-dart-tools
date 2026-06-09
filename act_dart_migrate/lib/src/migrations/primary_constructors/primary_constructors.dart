@@ -24,6 +24,8 @@ part 'models.dart';
 part 'source_helpers.dart';
 
 const primaryConstructorsMigration = 'primary-constructors';
+const primaryConstructorsSkipSuperConstructorInitializersFlag =
+    'skip-super-constructor-initializers';
 const primaryConstructorsCommandMetadata = MigrationCommandMetadata(
   id: primaryConstructorsMigration,
   displayName: 'Primary Constructors',
@@ -34,6 +36,7 @@ const primaryConstructorsCommandMetadata = MigrationCommandMetadata(
     'dart run act_dart_migrate primary-constructors <target-package> --json',
     'dart run act_dart_migrate primary-constructors <target-package> --dry-run',
     'dart run act_dart_migrate primary-constructors <target-package> --include-skipped',
+    'dart run act_dart_migrate primary-constructors <target-package> --skip-super-constructor-initializers',
   ],
   description:
       'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax.',
@@ -155,6 +158,12 @@ enum DeclarationSkipReason {
     'unsupportedInitializer',
     'This constructor initializer is not supported.',
   ),
+  superConstructorInitializer(
+    'superConstructorInitializer',
+    'Super constructor initializers are skipped by '
+        '--skip-super-constructor-initializers as a Dart SDK '
+        'primary-constructor workaround.',
+  ),
   namedSuperInitializer(
     'namedSuperInitializer',
     'Named super constructor initializers are not supported.',
@@ -167,8 +176,12 @@ enum DeclarationSkipReason {
 }
 
 final class PrimaryConstructorMigration implements TargetPackageMigration {
-  const PrimaryConstructorMigration({ParseTargetDartSource? parseSource})
-    : _customParseSource = parseSource;
+  const PrimaryConstructorMigration({
+    this.skipSuperConstructorInitializers = false,
+    ParseTargetDartSource? parseSource,
+  }) : _customParseSource = parseSource;
+
+  final bool skipSuperConstructorInitializers;
 
   final ParseTargetDartSource? _customParseSource;
 
@@ -193,6 +206,7 @@ final class PrimaryConstructorMigration implements TargetPackageMigration {
       dryRun: dryRun,
       readFile: readFile,
       writeFile: writeFile,
+      skipSuperConstructorInitializers: skipSuperConstructorInitializers,
       parseSource: _customParseSource,
     );
   }

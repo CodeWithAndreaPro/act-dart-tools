@@ -59,10 +59,13 @@ void main() {
         '  --dry-run           Preview the migration without writing files.',
         '  --json              Emit a machine-readable JSON report.',
         '  --include-skipped   Include skipped declarations in text output.',
+        '  --skip-super-constructor-initializers   Skip retained super(...) and super.named(...) initializer migrations as a Dart SDK primary-constructor workaround.',
       ]);
       expect(output, contains('--dry-run'));
       expect(output, contains('--json'));
       expect(output, contains('--include-skipped'));
+      expect(output, contains('--skip-super-constructor-initializers'));
+      expect(output, contains('Dart SDK primary-constructor workaround'));
       expect(output, isNot(contains('dart run act_dart_migrate migrate')));
       expect(output, isNot(contains('migrate <target-package> [options]')));
       expect(output, isNot(contains('--help')));
@@ -165,6 +168,7 @@ void main() {
               'dart run act_dart_migrate primary-constructors <target-package> --json',
               'dart run act_dart_migrate primary-constructors <target-package> --dry-run',
               'dart run act_dart_migrate primary-constructors <target-package> --include-skipped',
+              'dart run act_dart_migrate primary-constructors <target-package> --skip-super-constructor-initializers',
             ],
             'description':
                 'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax.',
@@ -480,6 +484,40 @@ class Skip {
         expect(output, contains('- packages/nested (nestedPackage)'));
       },
     );
+
+    test('include-skipped text output lists skip reason counts', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/button.dart', '''
+class Button extends Widget {
+  final String label;
+
+  Button(this.label) : super(label);
+}
+
+class Widget(Object label);
+''');
+      final stdout = StringBuffer();
+      final stderr = StringBuffer();
+
+      final exitCode = await runActDartMigrate(
+        [
+          'primary-constructors',
+          root.path,
+          '--include-skipped',
+          '--$primaryConstructorsSkipSuperConstructorInitializersFlag',
+        ],
+        stdout: stdout,
+        stderr: stderr,
+      );
+
+      expect(exitCode, exitSuccess);
+      expect(stderr.toString(), isEmpty);
+      final output = stdout.toString();
+      expect(output, contains('Skipped declarations: 1'));
+      expect(output, contains('Skip reason counts:'));
+      expect(output, contains('- superConstructorInitializer: 1'));
+    });
 
     test('include-skipped does not change JSON-only stdout', () async {
       final root = await createPackageRoot();

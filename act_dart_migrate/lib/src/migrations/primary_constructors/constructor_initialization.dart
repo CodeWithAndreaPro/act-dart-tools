@@ -56,6 +56,8 @@ final class _ConstructorRealizationPlanner {
             ),
         ],
         primaryBodySource: initializationPlan.primaryBodySource,
+        hasRetainedSuperConstructorInitializer:
+            initializationPlan.hasRetainedSuperConstructorInitializer,
       ),
     );
   }
@@ -100,6 +102,7 @@ final class _ConstructorInitializationPlanner {
     final fieldInitializers = <_FieldInitializerMigration>[];
     final retainedInitializers = <ConstructorInitializer>[];
     final initializedFieldNames = <String>{};
+    var hasRetainedSuperConstructorInitializer = false;
     final parameterNames = _constructorParameterNames();
 
     for (final initializer in constructor.initializers) {
@@ -110,6 +113,7 @@ final class _ConstructorInitializationPlanner {
       }
       if (initializer is SuperConstructorInvocation) {
         retainedInitializers.add(initializer);
+        hasRetainedSuperConstructorInitializer = true;
         continue;
       }
       if (initializer is AssertInitializer) {
@@ -182,6 +186,8 @@ final class _ConstructorInitializationPlanner {
         privateFieldInitializersByName: privateFieldInitializersByName,
         fieldInitializers: fieldInitializers,
         primaryBodySource: _primaryBodySource(retainedInitializers),
+        hasRetainedSuperConstructorInitializer:
+            hasRetainedSuperConstructorInitializer,
       ),
     );
   }

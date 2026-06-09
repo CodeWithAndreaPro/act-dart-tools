@@ -1,7 +1,7 @@
-import 'package:act_dart_primary_constructors/src/discovery.dart';
-import 'package:act_dart_primary_constructors/src/exit_codes.dart';
-import 'package:act_dart_primary_constructors/src/migration.dart';
-import 'package:act_dart_primary_constructors/src/target_package_run.dart';
+import 'package:act_dart_migrate/src/discovery.dart';
+import 'package:act_dart_migrate/src/exit_codes.dart';
+import 'package:act_dart_migrate/src/migration.dart';
+import 'package:act_dart_migrate/src/target_package_run.dart';
 import 'package:test/test.dart';
 
 void main() {

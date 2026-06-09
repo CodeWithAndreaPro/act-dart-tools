@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
+import 'package:act_dart_migrate/act_dart_migrate.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -14,7 +14,11 @@ void main() {
 class Empty {}
 ''');
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -49,7 +53,11 @@ class DatabaseIOError(final String message) extends DatabaseIOResult;
 ''';
       writeFile(root, 'lib/already_empty.dart', originalSource);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -75,7 +83,11 @@ class User {
 }
 ''');
 
-        final result = await runCli(['migrate', root.path, '--json']);
+        final result = await runCli([
+          'primary-constructors',
+          root.path,
+          '--json',
+        ]);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -104,7 +116,11 @@ class Named {
 }
 ''');
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -141,7 +157,11 @@ class Commented {
 ''';
       writeFile(root, 'lib/commented.dart', originalSource);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -175,7 +195,11 @@ extension type Identifier(String value) {}
 ''';
       writeFile(root, 'lib/unsupported.dart', originalSource);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);

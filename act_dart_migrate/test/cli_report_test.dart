@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
-import 'package:act_dart_primary_constructors/src/discovery.dart';
-import 'package:act_dart_primary_constructors/src/migration.dart';
-import 'package:act_dart_primary_constructors/src/target_package_run.dart';
+import 'package:act_dart_migrate/act_dart_migrate.dart';
+import 'package:act_dart_migrate/src/discovery.dart';
+import 'package:act_dart_migrate/src/migration.dart';
+import 'package:act_dart_migrate/src/target_package_run.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -40,12 +40,16 @@ void main() {
       final output = result.stdout as String;
       expect(
         output,
-        contains('Migrate Dart declarations to primary-constructor syntax.'),
+        contains('ACT Dart Migrate runs Dart migration subcommands.'),
       );
       expect(output, contains('Usage:'));
       expect(output, contains('--version'));
-      expect(output, contains('migrate'));
-      expect(output, contains('migrate <target-package> [options]'));
+      expect(output, contains('Migration Subcommands:'));
+      expect(output, contains('primary-constructors'));
+      expect(
+        output,
+        contains('primary-constructors <target-package> [options]'),
+      );
       expect(output, contains('Use . for the current directory'));
       expect(output.split('\n').where(_isOptionLine), [
         '  --dry-run           Preview the migration without writing files.',
@@ -55,8 +59,8 @@ void main() {
       expect(output, contains('--dry-run'));
       expect(output, contains('--json'));
       expect(output, contains('--include-skipped'));
-      expect(output, isNot(contains('Available commands')));
-      expect(output, isNot(contains('Migrate usage')));
+      expect(output, isNot(contains('dart run act_dart_migrate migrate')));
+      expect(output, isNot(contains('migrate <target-package> [options]')));
       expect(output, isNot(contains('--help')));
       expect(output.trimLeft(), isNot(startsWith('{')));
     });
@@ -66,18 +70,37 @@ void main() {
 
       expect(result.exitCode, exitArgumentError);
       expect(result.stdout, isEmpty);
+      expect(result.stderr, contains('Unknown Migration Subcommand "--help".'));
       expect(
         result.stderr,
-        contains('Expected --version or the migrate command.'),
+        contains('Run dart run act_dart_migrate for usage'),
       );
+      expect(result.stderr, contains('primary-constructors'));
     });
 
-    test('migrate --help is not supported', () async {
+    test('unknown root command with --json omits migration', () async {
+      final result = await runCli(['migrate', '--json']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded.keys, ['ok', 'schemaVersion', 'toolVersion', 'error']);
+      expect(decoded['ok'], isFalse);
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message':
+            'Unknown Migration Subcommand "migrate". Run dart run '
+            'act_dart_migrate for usage. Available Migration Subcommands: '
+            'primary-constructors.',
+      });
+    });
+
+    test('primary-constructors --help is not supported', () async {
       final stdout = StringBuffer();
       final stderr = StringBuffer();
 
-      final exitCode = await runDartPrimaryConstructors(
-        ['migrate', '--help', '--json'],
+      final exitCode = await runActDartMigrate(
+        ['primary-constructors', '--help', '--json'],
         stdout: stdout,
         stderr: stderr,
         runner: TargetPackageRunner(
@@ -89,6 +112,7 @@ void main() {
       expect(stderr.toString(), isEmpty);
       final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['error'], {
         'code': 'argumentError',
         'message': 'Could not find an option named "--help".',
@@ -96,7 +120,7 @@ void main() {
     });
   });
 
-  group('migrate no-op report', () {
+  group('primary-constructors no-op report', () {
     test('serializes stable JSON report skeleton', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -105,6 +129,7 @@ void main() {
 
       expect(report.toJson(), {
         'ok': true,
+        'migration': primaryConstructorsMigration,
         'schemaVersion': schemaVersion,
         'toolVersion': packageVersion,
         'root': normalizedPath(root),
@@ -124,13 +149,18 @@ void main() {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
       expect(decoded.keys, [
         'ok',
+        'migration',
         'schemaVersion',
         'toolVersion',
         'root',
@@ -145,6 +175,7 @@ void main() {
         'skipReasonCounts',
       ]);
       expect(decoded, containsPair('ok', true));
+      expect(decoded, containsPair('migration', primaryConstructorsMigration));
       expect(decoded, containsPair('schemaVersion', schemaVersion));
       expect(decoded, containsPair('toolVersion', packageVersion));
       expect(decoded, containsPair('root', normalizedPath(root)));
@@ -182,7 +213,11 @@ void main() {
         'void checkout() {}',
       );
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -217,7 +252,11 @@ class Skip {
 ''';
       writeFile(root, 'lib/skip.dart', source);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -248,7 +287,11 @@ class Skip {
       writeFile(root, 'build/broken.dart', 'class {');
       writeFile(root, 'lib/source.dart', 'void source() {}');
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -265,8 +308,8 @@ class Skip {
 
       final stdout = StringBuffer();
       final stderr = StringBuffer();
-      final exitCode = await runDartPrimaryConstructors(
-        ['migrate', root.path],
+      final exitCode = await runActDartMigrate(
+        ['primary-constructors', root.path],
         stdout: stdout,
         stderr: stderr,
       );
@@ -275,12 +318,12 @@ class Skip {
       expect(stderr.toString(), isEmpty);
       expect(
         stdout.toString(),
-        contains('Dart primary constructors migration'),
+        contains('ACT Dart Migrate: primary-constructors'),
       );
       expect(stdout.toString(), contains('Tool version: $packageVersion'));
       expect(stdout.toString(), contains('Root: ${normalizedPath(root)}'));
       expect(stdout.toString().split('\n').take(5), [
-        'Dart primary constructors migration',
+        'ACT Dart Migrate: primary-constructors',
         'Tool version: $packageVersion',
         'Root: ${normalizedPath(root)}',
         'Dry run: false',
@@ -310,8 +353,8 @@ class Skip {
 
         final stdout = StringBuffer();
         final stderr = StringBuffer();
-        final exitCode = await runDartPrimaryConstructors(
-          ['migrate', root.path, '--include-skipped'],
+        final exitCode = await runActDartMigrate(
+          ['primary-constructors', root.path, '--include-skipped'],
           stdout: stdout,
           stderr: stderr,
         );
@@ -334,7 +377,7 @@ class Skip {
       writeFile(root, 'lib/model.g.dart', 'void generated() {}');
 
       final result = await runCli([
-        'migrate',
+        'primary-constructors',
         root.path,
         '--json',
         '--include-skipped',
@@ -353,12 +396,17 @@ class Skip {
 
   group('failure reports', () {
     test('invalid argument returns argument-error JSON', () async {
-      final result = await runCli(['migrate', '--unsupported', '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        '--unsupported',
+        '--json',
+      ]);
 
       expect(result.exitCode, exitArgumentError);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['schemaVersion'], schemaVersion);
       expect(decoded['toolVersion'], packageVersion);
       expect(decoded['error'], {
@@ -368,12 +416,18 @@ class Skip {
     });
 
     test('more than one target path returns argument-error JSON', () async {
-      final result = await runCli(['migrate', 'one', 'two', '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        'one',
+        'two',
+        '--json',
+      ]);
 
       expect(result.exitCode, exitArgumentError);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['error'], {
         'code': 'argumentError',
         'message': 'Expected exactly one target package path.',
@@ -384,8 +438,8 @@ class Skip {
       final stdout = StringBuffer();
       final stderr = StringBuffer();
 
-      final exitCode = await runDartPrimaryConstructors(
-        ['migrate', '--json'],
+      final exitCode = await runActDartMigrate(
+        ['primary-constructors', '--json'],
         stdout: stdout,
         stderr: stderr,
         runner: TargetPackageRunner(
@@ -397,6 +451,7 @@ class Skip {
       expect(stderr.toString(), isEmpty);
       final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['error'], {
         'code': 'argumentError',
         'message': 'Expected exactly one target package path.',
@@ -405,12 +460,13 @@ class Skip {
 
     for (final flag in ['--diff', '--include', '--exclude']) {
       test('unsupported option $flag returns argument-error JSON', () async {
-        final result = await runCli(['migrate', flag, '--json']);
+        final result = await runCli(['primary-constructors', flag, '--json']);
 
         expect(result.exitCode, exitArgumentError);
         expect(result.stderr, isEmpty);
         final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
         expect(decoded['ok'], isFalse);
+        expect(decoded['migration'], primaryConstructorsMigration);
         expect(decoded['error'], {
           'code': 'argumentError',
           'message': 'Could not find an option named "$flag".',
@@ -423,12 +479,17 @@ class Skip {
       addTearDown(() => root.deleteSync(recursive: true));
       writeFile(root, 'lib/broken.dart', 'class {');
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitParseFailure);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['schemaVersion'], schemaVersion);
       expect(decoded['toolVersion'], packageVersion);
       expect(decoded['error'], isA<Map<String, Object?>>());
@@ -456,8 +517,8 @@ class Skip {
         },
       );
 
-      final exitCode = await runDartPrimaryConstructors(
-        ['migrate', _memoryRoot, '--json'],
+      final exitCode = await runActDartMigrate(
+        ['primary-constructors', _memoryRoot, '--json'],
         stdout: stdout,
         stderr: stderr,
         runner: runner,
@@ -468,6 +529,7 @@ class Skip {
       expect(fileSystem.writes, isEmpty);
       final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['error'], {
         'code': 'validationFailure',
         'message':
@@ -481,8 +543,8 @@ class Skip {
         final stdout = StringBuffer();
         final stderr = StringBuffer();
 
-        final exitCode = await runDartPrimaryConstructors(
-          ['migrate', _memoryRoot, '--json'],
+        final exitCode = await runActDartMigrate(
+          ['primary-constructors', _memoryRoot, '--json'],
           stdout: stdout,
           stderr: stderr,
           runner: TargetPackageRunner(
@@ -494,6 +556,7 @@ class Skip {
         final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
         expect(decoded, {
           'ok': false,
+          'migration': primaryConstructorsMigration,
           'schemaVersion': schemaVersion,
           'toolVersion': packageVersion,
           'error': {
@@ -519,8 +582,8 @@ class Skip {
           requestRoot: '.',
         );
 
-        final exitCode = await runDartPrimaryConstructors(
-          ['migrate', '.', '--json'],
+        final exitCode = await runActDartMigrate(
+          ['primary-constructors', '.', '--json'],
           stdout: stdout,
           stderr: stderr,
           runner: TargetPackageRunner(fileSystem: fileSystem),
@@ -547,8 +610,8 @@ class Skip {
 
         Directory.current = root;
         try {
-          final exitCode = await runDartPrimaryConstructors(
-            ['migrate', '.', '--json'],
+          final exitCode = await runActDartMigrate(
+            ['primary-constructors', '.', '--json'],
             stdout: stdout,
             stderr: stderr,
           );
@@ -561,6 +624,7 @@ class Skip {
         expect(stderr.toString(), isEmpty);
         final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
         expect(decoded['ok'], isFalse);
+        expect(decoded['migration'], primaryConstructorsMigration);
         expect(decoded['schemaVersion'], schemaVersion);
         expect(decoded['toolVersion'], packageVersion);
         expect(decoded['error'], {
@@ -577,12 +641,17 @@ class Skip {
       );
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitInvalidRoot);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
       expect(decoded['ok'], isFalse);
+      expect(decoded['migration'], primaryConstructorsMigration);
       expect(decoded['error'], {
         'code': 'invalidRoot',
         'message':

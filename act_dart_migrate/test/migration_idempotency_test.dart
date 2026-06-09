@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
+import 'package:act_dart_migrate/act_dart_migrate.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -282,7 +282,11 @@ Future<void> expectIdempotentMigration({
     writeFile(root, entry.key, entry.value);
   }
 
-  final firstResult = await runCli(['migrate', root.path, '--json']);
+  final firstResult = await runCli([
+    'primary-constructors',
+    root.path,
+    '--json',
+  ]);
   final firstReport = expectMigrationResult(firstResult);
   expect(firstReport['changedFiles'], expectedFirstChangedFiles);
   expect(
@@ -302,7 +306,11 @@ Future<void> expectIdempotentMigration({
     filesAfterFirstRun[entry.key] = source;
   }
 
-  final secondResult = await runCli(['migrate', root.path, '--json']);
+  final secondResult = await runCli([
+    'primary-constructors',
+    root.path,
+    '--json',
+  ]);
   final secondReport = expectMigrationResult(secondResult);
   expect(secondReport['changedFiles'], isEmpty);
   expect(secondReport['migratedDeclarations'], isEmpty);

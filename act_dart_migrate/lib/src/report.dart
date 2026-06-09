@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'discovery.dart';
 import 'version.dart';
 
-const schemaVersion = 1;
+const schemaVersion = 2;
+const primaryConstructorsMigration = 'primary-constructors';
 const primaryConstructorTransform = 'primaryConstructor';
 const constructorShorthandTransform = 'constructorShorthand';
 const emptyClassBodyTransform = 'emptyClassBody';
@@ -176,6 +177,7 @@ class MigrationReport {
   const MigrationReport({
     required this.root,
     required this.dryRun,
+    this.migration = primaryConstructorsMigration,
     this.changedFiles = const [],
     this.migratedDeclarations = const [],
     this.skippedDeclarations = const [],
@@ -214,6 +216,7 @@ class MigrationReport {
   }
 
   final String root;
+  final String migration;
   final bool dryRun;
   final List<String> changedFiles;
   final List<MigratedDeclarationReport> migratedDeclarations;
@@ -226,6 +229,7 @@ class MigrationReport {
   Map<String, Object?> toJson() {
     return {
       'ok': true,
+      'migration': migration,
       'schemaVersion': schemaVersion,
       'toolVersion': packageVersion,
       'root': root,
@@ -251,7 +255,7 @@ class MigrationReport {
 
   String toTextString({required bool includeSkipped}) {
     final buffer = StringBuffer()
-      ..writeln('Dart primary constructors migration')
+      ..writeln('ACT Dart Migrate: $migration')
       ..writeln('Tool version: $packageVersion')
       ..writeln('Root: $root')
       ..writeln('Dry run: $dryRun')
@@ -302,18 +306,29 @@ class MigrationReport {
 }
 
 class CliErrorReport {
-  const CliErrorReport({required this.code, required this.message});
+  const CliErrorReport({
+    required this.code,
+    required this.message,
+    this.migration,
+  });
 
   final String code;
   final String message;
+  final String? migration;
+
+  CliErrorReport withMigration(String migration) {
+    return CliErrorReport(code: code, message: message, migration: migration);
+  }
 
   Map<String, Object?> toJson() {
-    return {
-      'ok': false,
-      'schemaVersion': schemaVersion,
-      'toolVersion': packageVersion,
-      'error': {'code': code, 'message': message},
-    };
+    final json = <String, Object?>{'ok': false};
+    if (migration case final migration?) {
+      json['migration'] = migration;
+    }
+    json['schemaVersion'] = schemaVersion;
+    json['toolVersion'] = packageVersion;
+    json['error'] = {'code': code, 'message': message};
+    return json;
   }
 
   String toJsonString() => jsonEncode(toJson());

@@ -1,5 +1,5 @@
-import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
-import 'package:act_dart_primary_constructors/src/discovery.dart';
+import 'package:act_dart_migrate/act_dart_migrate.dart';
+import 'package:act_dart_migrate/src/discovery.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -378,11 +378,11 @@ void main() {
 
       final output = report.toTextString(includeSkipped: true);
 
-      expect(output, contains('Dart primary constructors migration'));
+      expect(output, contains('ACT Dart Migrate: primary-constructors'));
       expect(output, contains('Tool version: $packageVersion'));
       expect(output, contains('Root: /target'));
       expect(output.split('\n').take(5), [
-        'Dart primary constructors migration',
+        'ACT Dart Migrate: primary-constructors',
         'Tool version: $packageVersion',
         'Root: /target',
         'Dry run: true',
@@ -413,7 +413,11 @@ void main() {
     test('serializes stable error JSON shape and codes', () {
       const reports = [
         CliErrorReport(code: 'argumentError', message: 'bad arguments'),
-        CliErrorReport(code: 'invalidRoot', message: 'bad root'),
+        CliErrorReport(
+          code: 'invalidRoot',
+          message: 'bad root',
+          migration: primaryConstructorsMigration,
+        ),
         CliErrorReport(code: 'parseFailure', message: 'bad input'),
         CliErrorReport(code: 'validationFailure', message: 'bad output'),
         CliErrorReport(code: 'internalError', message: 'bad internal state'),
@@ -428,6 +432,7 @@ void main() {
         },
         {
           'ok': false,
+          'migration': primaryConstructorsMigration,
           'schemaVersion': schemaVersion,
           'toolVersion': packageVersion,
           'error': {'code': 'invalidRoot', 'message': 'bad root'},

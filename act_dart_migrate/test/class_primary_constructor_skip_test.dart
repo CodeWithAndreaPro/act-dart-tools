@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
+import 'package:act_dart_migrate/act_dart_migrate.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -21,7 +21,11 @@ class Already(final String id);
 ''';
         writeFile(root, 'lib/source.dart', originalSource);
 
-        final result = await runCli(['migrate', root.path, '--json']);
+        final result = await runCli([
+          'primary-constructors',
+          root.path,
+          '--json',
+        ]);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -35,10 +39,12 @@ class Already(final String id);
       },
     );
 
-    test('classifies migrate skip and no-op outcomes in one run', () async {
-      final root = await createPackageRoot();
-      addTearDown(() => root.deleteSync(recursive: true));
-      const originalSource = '''
+    test(
+      'classifies primary-constructor skip and no-op outcomes in one run',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
 class Migrated {
   final String id;
 
@@ -57,47 +63,51 @@ class Plain {
 
 class Already(final String id);
 ''';
-      writeFile(root, 'lib/source.dart', originalSource);
+        writeFile(root, 'lib/source.dart', originalSource);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+        final result = await runCli([
+          'primary-constructors',
+          root.path,
+          '--json',
+        ]);
 
-      expect(result.exitCode, exitSuccess);
-      expect(result.stderr, isEmpty);
-      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
-      expect(decoded['changedFiles'], ['lib/source.dart']);
-      expect(decoded['migratedDeclarations'], [
-        {
-          'path': 'lib/source.dart',
-          'declarationKind': 'class',
-          'declarationName': 'Migrated',
-          'transform': 'primaryConstructor',
-          'offset': originalSource.indexOf('class Migrated'),
-        },
-        {
-          'path': 'lib/source.dart',
-          'declarationKind': 'class',
-          'declarationName': 'Migrated',
-          'transform': 'emptyClassBody',
-          'offset': originalSource.indexOf('class Migrated'),
-        },
-      ]);
-      expect(decoded['skippedDeclarations'], [
-        {
-          'path': 'lib/source.dart',
-          'declarationKind': 'class',
-          'declarationName': 'Skipped',
-          'transform': 'primaryConstructor',
-          'offset': originalSource.indexOf('class Skipped'),
-          'reason': 'unsupportedParameterShape',
-          'message': 'This constructor parameter shape is not supported.',
-        },
-      ]);
-      expect(decoded['transformCounts'], {
-        'primaryConstructor': 1,
-        'emptyClassBody': 1,
-      });
-      expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 1});
-      expect(await formattedFile(root, 'lib/source.dart'), '''
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], ['lib/source.dart']);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Migrated',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class Migrated'),
+          },
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Migrated',
+            'transform': 'emptyClassBody',
+            'offset': originalSource.indexOf('class Migrated'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/source.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Skipped',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class Skipped'),
+            'reason': 'unsupportedParameterShape',
+            'message': 'This constructor parameter shape is not supported.',
+          },
+        ]);
+        expect(decoded['transformCounts'], {
+          'primaryConstructor': 1,
+          'emptyClassBody': 1,
+        });
+        expect(decoded['skipReasonCounts'], {'unsupportedParameterShape': 1});
+        expect(await formattedFile(root, 'lib/source.dart'), '''
 class Migrated(final String id);
 
 class Skipped {
@@ -112,7 +122,8 @@ class Plain {
 
 class Already(final String id);
 ''');
-    });
+      },
+    );
 
     test(
       'reports migrated, skipped, and no-op classes from one file in source order',
@@ -156,7 +167,11 @@ class PlainAfter {
 ''';
         writeFile(root, 'lib/source.dart', originalSource);
 
-        final result = await runCli(['migrate', root.path, '--json']);
+        final result = await runCli([
+          'primary-constructors',
+          root.path,
+          '--json',
+        ]);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -348,7 +363,11 @@ class AddInvestmentChoice {
 ''';
       writeFile(root, 'lib/add_investment_choice.dart', originalSource);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -420,7 +439,11 @@ class ShorthandSafety {
 ''';
       writeFile(root, 'lib/shorthand_safety.dart', originalSource);
 
-      final result = await runCli(['migrate', root.path, '--json']);
+      final result = await runCli([
+        'primary-constructors',
+        root.path,
+        '--json',
+      ]);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -508,7 +531,11 @@ class ConstructorShorthandRegression {
           originalSource,
         );
 
-        final result = await runCli(['migrate', root.path, '--json']);
+        final result = await runCli([
+          'primary-constructors',
+          root.path,
+          '--json',
+        ]);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -631,7 +658,11 @@ class ConstructorDocumentationComment {
           addTearDown(() => root.deleteSync(recursive: true));
           writeFile(root, scenario.relativePath, scenario.source);
 
-          final result = await runCli(['migrate', root.path, '--json']);
+          final result = await runCli([
+            'primary-constructors',
+            root.path,
+            '--json',
+          ]);
 
           expect(result.exitCode, exitSuccess);
           expect(result.stderr, isEmpty);
@@ -681,7 +712,11 @@ class AppDatabase extends _\$AppDatabase {
 ''';
         writeFile(root, 'lib/app_database.dart', originalSource);
 
-        final result = await runCli(['migrate', root.path, '--json']);
+        final result = await runCli([
+          'primary-constructors',
+          root.path,
+          '--json',
+        ]);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);

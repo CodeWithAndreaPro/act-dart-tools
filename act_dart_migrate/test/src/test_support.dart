@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:act_dart_primary_constructors/act_dart_primary_constructors.dart';
-import 'package:act_dart_primary_constructors/src/discovery.dart';
+import 'package:act_dart_migrate/act_dart_migrate.dart';
+import 'package:act_dart_migrate/src/discovery.dart';
 import 'package:test/test.dart';
 
 Future<Directory> createPackageRoot() async {
@@ -34,7 +34,7 @@ String systemPath(String relativePath) {
 Future<ProcessResult> runCli(List<String> arguments) {
   return Process.run(Platform.resolvedExecutable, [
     'run',
-    'act_dart_primary_constructors',
+    'act_dart_migrate',
     ...arguments,
   ]);
 }
@@ -49,6 +49,7 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);
   final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+  expect(decoded['migration'], primaryConstructorsMigration);
   expect(decoded['changedFiles'], [path]);
   expect(decoded['migratedDeclarations'], [
     {
@@ -86,12 +87,13 @@ Future<Map<String, Object?>> expectSinglePrimaryConstructorSkip({
   addTearDown(() => root.deleteSync(recursive: true));
   writeFile(root, relativePath, originalSource);
 
-  final result = await runCli(['migrate', root.path, '--json']);
+  final result = await runCli(['primary-constructors', root.path, '--json']);
 
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);
   final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
   expect(decoded['ok'], isTrue);
+  expect(decoded['migration'], primaryConstructorsMigration);
   expect(decoded['changedFiles'], isEmpty);
   expect(decoded['migratedDeclarations'], isEmpty);
   expect(decoded['skippedDeclarations'], [

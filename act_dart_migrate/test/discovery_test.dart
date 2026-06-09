@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:act_dart_primary_constructors/src/discovery.dart';
+import 'package:act_dart_migrate/src/discovery.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';

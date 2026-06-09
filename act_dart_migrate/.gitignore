@@ -4,7 +4,7 @@
 
 build/
 
-bin/act_dart_primary_constructors.exe
+bin/act_dart_migrate.exe
 
 AGENTS.md
 

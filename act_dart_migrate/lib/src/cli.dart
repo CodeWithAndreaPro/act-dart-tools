@@ -7,7 +7,7 @@ import 'report.dart';
 import 'target_package_run.dart';
 import 'version.dart';
 
-Future<int> runDartPrimaryConstructors(
+Future<int> runActDartMigrate(
   List<String> arguments, {
   StringSink? stdout,
   StringSink? stderr,
@@ -27,8 +27,9 @@ Future<int> runDartPrimaryConstructors(
       return exitSuccess;
     }
 
-    if (arguments.isNotEmpty && arguments.first == 'migrate') {
-      return await _runMigrate(
+    if (arguments.isNotEmpty &&
+        arguments.first == primaryConstructorsMigration) {
+      return await _runPrimaryConstructors(
         arguments.skip(1).toList(),
         stdout: out,
         stderr: err,
@@ -39,7 +40,7 @@ Future<int> runDartPrimaryConstructors(
     return _writeError(
       CliErrorReport(
         code: 'argumentError',
-        message: 'Expected --version or the migrate command.',
+        message: _unknownSubcommandMessage(arguments.first),
       ),
       exitArgumentError,
       json: arguments.contains('--json'),
@@ -50,6 +51,7 @@ Future<int> runDartPrimaryConstructors(
     return _writeInternalError(
       error,
       stackTrace,
+      migration: _selectedMigration(arguments),
       json: arguments.contains('--json'),
       stdout: out,
       stderr: err,
@@ -57,7 +59,7 @@ Future<int> runDartPrimaryConstructors(
   }
 }
 
-Future<int> _runMigrate(
+Future<int> _runPrimaryConstructors(
   List<String> arguments, {
   required StringSink stdout,
   required StringSink stderr,
@@ -86,7 +88,11 @@ Future<int> _runMigrate(
     results = parser.parse(arguments);
   } on FormatException catch (error) {
     return _writeError(
-      CliErrorReport(code: 'argumentError', message: error.message),
+      CliErrorReport(
+        code: 'argumentError',
+        message: error.message,
+        migration: primaryConstructorsMigration,
+      ),
       exitArgumentError,
       json: jsonRequested,
       stdout: stdout,
@@ -99,6 +105,7 @@ Future<int> _runMigrate(
       const CliErrorReport(
         code: 'argumentError',
         message: 'Expected exactly one target package path.',
+        migration: primaryConstructorsMigration,
       ),
       exitArgumentError,
       json: results.flag('json'),
@@ -127,17 +134,21 @@ Future<int> _runMigrate(
       json: results.flag('json'),
       stdout: stdout,
       stderr: stderr,
+      migration: primaryConstructorsMigration,
     );
   }
   return outcome.exitCode;
 }
 
-const _rootHelpOutput =
-    '''Migrate Dart declarations to primary-constructor syntax.
+const _rootHelpOutput = '''ACT Dart Migrate runs Dart migration subcommands.
 
 Usage:
-  dart run act_dart_primary_constructors migrate <target-package> [options]
-  dart run act_dart_primary_constructors --version
+  dart run act_dart_migrate
+  dart run act_dart_migrate --version
+  dart run act_dart_migrate primary-constructors <target-package> [options]
+
+Migration Subcommands:
+  primary-constructors   Migrate Dart declarations to primary-constructor syntax.
 
 Arguments:
   target-package     Package root to migrate. Use . for the current directory.
@@ -148,17 +159,35 @@ Options:
   --include-skipped   Include skipped declarations in text output.
 ''';
 
+String _unknownSubcommandMessage(String subcommand) {
+  return 'Unknown Migration Subcommand "$subcommand". Run dart run '
+      'act_dart_migrate for usage. Available Migration Subcommands: '
+      '$primaryConstructorsMigration.';
+}
+
+String? _selectedMigration(List<String> arguments) {
+  if (arguments.isNotEmpty && arguments.first == primaryConstructorsMigration) {
+    return primaryConstructorsMigration;
+  }
+  return null;
+}
+
 int _writeError(
   CliErrorReport report,
   int exitCode, {
   required bool json,
   required StringSink stdout,
   required StringSink stderr,
+  String? migration,
 }) {
+  final outputReport = switch (migration) {
+    final migration? => report.withMigration(migration),
+    null => report,
+  };
   if (json) {
-    stdout.writeln(report.toJsonString());
+    stdout.writeln(outputReport.toJsonString());
   } else {
-    stderr.writeln(report.message);
+    stderr.writeln(outputReport.message);
   }
   return exitCode;
 }
@@ -166,13 +195,15 @@ int _writeError(
 int _writeInternalError(
   Object error,
   StackTrace stackTrace, {
+  String? migration,
   required bool json,
   required StringSink stdout,
   required StringSink stderr,
 }) {
-  const report = CliErrorReport(
+  final report = CliErrorReport(
     code: 'internalError',
     message: 'Internal error while running migration.',
+    migration: migration,
   );
   if (json) {
     stdout.writeln(report.toJsonString());

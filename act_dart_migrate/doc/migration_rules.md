@@ -33,10 +33,24 @@ preserves their order and meaning.
 
 By default, retained explicit super constructor initializers are migrated for
 maximum coverage. The opt-in `--skip-super-constructor-initializers` flag is a
-temporary Dart SDK primary-constructor workaround that skips otherwise eligible
-class migrations whose primary-constructor body would retain `super(...)` or
-`super.named(...)`. Super parameters such as `super.key` do not trigger that
-flag-specific skip.
+temporary Dart SDK primary-constructor workaround for a stable-channel compiler
+failure seen when a migrated class has both a primary constructor and an
+abstract superclass whose constructor has required parameters:
+
+```dart
+abstract class Parent {
+  const Parent({required this.index});
+  final int index;
+}
+
+class const Child(final int value) extends Parent {
+  this : super(index: value);
+}
+```
+
+When enabled, the flag skips otherwise eligible class migrations whose
+primary-constructor body would retain `super(...)` or `super.named(...)`. Super
+parameters such as `super.key` do not trigger that flag-specific skip.
 
 Enhanced-enum primary-constructor migration preserves enum value argument shape
 and retained enum members such as methods, getters, factories, and static

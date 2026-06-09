@@ -16,5 +16,4 @@ import.sh
 .DS_Store
 
 # Compiled Executable
-act_dart_primary_constructors/act_dart_primary_constructors
 act_dart_migrate/bin/act_dart_migrate.exe

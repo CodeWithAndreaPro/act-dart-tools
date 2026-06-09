@@ -1,23 +1,76 @@
 # Architecture Overview
 
-This document explains how the `act_dart_primary_constructors` CLI moves from a
-Target Package path to a migration report. It describes package responsibilities
-and seams, not stable private APIs.
+This document explains how ACT Dart Migrate moves from command-line input to a
+Migration Report. It describes responsibilities and boundaries, not stable
+private APIs.
 
-The CLI is bundled ACT tooling. Its runtime job is intentionally narrow: inspect
-a Target Package, plan conservative source rewrites, validate those rewrites,
-write changed files when not in dry-run mode, and emit a stable report.
+ACT Dart Migrate is bundled ACT tooling shaped as one executable with Migration
+Subcommands. Its runtime job is intentionally narrow: inspect a Target Package,
+plan conservative source rewrites for the selected migration, validate those
+rewrites, write changed files when not in dry-run mode, and emit a stable report.
+
+The first Migration Subcommand is `primary-constructors`.
+
+## Package Shape
+
+The package is a modular monolith:
+
+- One executable: `act_dart_migrate`.
+- Multiple Migration Subcommands over time.
+- Shared internal core responsibilities for reusable mechanics.
+- Migration-specific modules for language-feature behavior.
+
+The stable surface is command behavior and report vocabulary. Private source
+files, classes, helper functions, and module boundaries may change as long as the
+external command contract and report contract remain stable.
+
+## Shared Internal Core
+
+The shared internal core owns mechanics that should be consistent across
+Migration Subcommands:
+
+- Target Package root validation.
+- Dart file discovery and deterministic path ordering.
+- Generated-file, nested-package, nested-repository, and excluded-directory
+  skipping.
+- Dry-run behavior.
+- Source-edit range validation.
+- Descending offset edit application.
+- Changed-file tracking.
+- Stable exit-code categories.
+- Report envelope conventions and stdout/stderr rules.
+- Deterministic report arrays and count maps.
+
+The shared internal core does not own language-feature-specific rewrite rules or
+skip vocabulary.
+
+## Migration-Specific Modules
+
+Migration-specific modules own behavior for one migration language feature:
+
+- Migration prerequisites and experiment requirements.
+- Analyzer feature flags when parsing or validation needs them.
+- Transform rules.
+- Declaration skip reason vocabulary.
+- Migration-specific validation strategy.
+- Fixture coverage for supported and skipped source shapes.
+
+For `primary-constructors`, the migration module owns class and enhanced-enum
+primary-constructor rewrites, constructor declaration shorthand rewrites, empty
+class-body collapse, and the stable primary-constructor transform and skip reason
+codes.
 
 ## Pipeline
 
-1. CLI argument handling turns command-line input into a target package run.
+1. CLI argument handling selects a Migration Subcommand and target package run.
 2. Target Package run orchestration validates the package root and coordinates
-   discovery, migration, error mapping, and report construction.
+   shared discovery, migration-specific planning, error mapping, and report
+   construction.
 3. Discovery finds non-generated Dart files and records skipped files or
    directories before migration planning starts.
-4. Migration planning parses each discovered Dart file, plans declaration-level
-   transforms, validates source edit ranges, and builds transformed source in
-   memory.
+4. Migration-specific planning parses each discovered Dart file, plans
+   declaration-level transforms, validates source edit ranges, and builds
+   transformed source in memory.
 5. Transformed-source validation parses every changed file in memory before any
    write occurs.
 6. A real run writes only already-validated changed files; a dry run writes
@@ -31,7 +84,9 @@ The CLI owns:
 
 - Target Package root validation.
 - Dart file and skipped-path discovery.
-- Conservative migration planning for supported transforms.
+- Dispatch to recognized Migration Subcommands.
+- Conservative migration planning for supported transforms in the selected
+  migration.
 - Source edit range validation before edits are applied.
 - Parse-before-write behavior for inspected input files.
 - Validation-before-write behavior for changed output files.
@@ -45,15 +100,16 @@ deterministic, and easy to validate from the report.
 
 ACT-owned orchestration surrounds the CLI. It can prepare the environment,
 invoke the bundled executable, read the JSON report, format changed Dart files,
-and run target-package verification after the CLI exits. Keeping those concerns
-outside this package prevents the migration report from hiding unrelated setup,
-formatting, or verification failures.
+run target-package analysis and tests, bootstrap bundled tooling dependencies,
+and manage git workflow after the CLI exits. Keeping those concerns outside this
+package prevents the migration report from hiding unrelated setup, formatting,
+verification, dependency, or git failures.
 
 ## Discovery
 
-`lib/src/discovery.dart` owns Target Package file discovery. It walks the target
-root in deterministic order, includes non-generated Dart files, and records
-skipped paths before migration planning receives any files.
+Discovery walks the target root in deterministic order, includes non-generated
+Dart files, and records skipped paths before migration planning receives any
+files.
 
 Generated Dart files are skipped because rewriting generated source would fight
 the generator that owns those files. Nested packages are skipped because a child
@@ -68,19 +124,19 @@ directories. Later stages use those facts to build `skippedFiles`,
 
 ## Target Package Run Orchestration
 
-`lib/src/target_package_run.dart` owns the package-level run. It normalizes and
-validates the target root, calls discovery, runs the migration engine, maps
-migration failures to public error codes, and creates the success report.
+Target Package run orchestration normalizes and validates the target root, calls
+discovery, runs the selected migration, maps migration failures to public error
+codes, and creates the success report.
 
-This layer is the seam between CLI argument handling and the migration engine.
-Tests can replace file-system access or parsing at this boundary without making
-runtime behavior depend on a different production implementation.
+This orchestration is the seam between CLI argument handling and migration
+planning. Tests can replace file-system access or parsing at this boundary
+without making runtime behavior depend on a different production implementation.
 
 ## Migration Planning
 
-`lib/src/migration.dart` and its parts own declaration planning. The planner
-parses each discovered Dart file with the primary-constructor experiment enabled,
-then considers top-level class and enhanced-enum declarations.
+For `primary-constructors`, the planner parses each discovered Dart file with the
+primary-constructor experiment enabled, then considers top-level class and
+enhanced-enum declarations.
 
 Planning is conservative. It creates source edits only for supported shapes
 and records skipped declarations with stable reason codes for unsupported or
@@ -95,8 +151,8 @@ package when input source is invalid.
 
 ## Source Edits
 
-`lib/src/source_edit.dart` owns source ranges and edit application. It validates
-range bounds and rejects overlapping edits before building transformed source.
+Source editing validates range bounds and rejects overlapping edits before
+building transformed source.
 
 Migration planners produce edit intents; source editing applies them in a stable
 order. This keeps syntax decisions in the migration planners and raw text-edit
@@ -119,10 +175,9 @@ returns the same planning and report facts without writing files.
 
 ## Reports
 
-`lib/src/report.dart` owns stable report serialization. It keeps public
-transform names, declaration skip reason codes, file and directory skip reason
-codes, deterministic sorting, combined counts, success JSON, failure JSON, and
-concise text output in one place.
+Report serialization keeps public transform names, declaration skip reason
+codes, file and directory skip reason codes, deterministic sorting, combined
+counts, success JSON, failure JSON, and concise text output stable.
 
 The report is the integration contract between the CLI and surrounding ACT
 orchestration. It is also the right place for users and agents to look when they

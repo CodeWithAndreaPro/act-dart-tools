@@ -1,4 +1,4 @@
-part of '../migration.dart';
+part of 'primary_constructors.dart';
 
 String _sourceFor(String source, AstNode node) {
   return source.substring(node.offset, node.end);

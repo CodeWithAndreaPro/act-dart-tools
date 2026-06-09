@@ -1,8 +1,4 @@
-part of '../migration.dart';
-
-typedef ReadTargetDartFile = String Function(TargetDartFile file);
-
-typedef WriteTargetDartFile = void Function(TargetDartFile file, String source);
+part of 'primary_constructors.dart';
 
 typedef ParseTargetDartSource =
     ParseStringResult Function(
@@ -93,9 +89,7 @@ class _MigrationReportAccumulator {
   final _migratedDeclarations = <MigratedDeclarationReport>[];
   final _skippedDeclarations = <SkippedDeclarationReport>[];
   final _transformCounts = <String, int>{};
-  final _skipReasonCounts = {
-    for (final reason in DeclarationSkipReason.values) reason: 0,
-  };
+  final _skipReasonCounts = <String, int>{};
 
   void addFilePlan(_PlannedFileMigration plan) {
     final facts = plan.reportFacts;
@@ -107,7 +101,7 @@ class _MigrationReportAccumulator {
     }
     for (final entry in facts.skipReasonCounts.entries) {
       _skipReasonCounts[entry.key] =
-          _skipReasonCounts[entry.key]! + entry.value;
+          (_skipReasonCounts[entry.key] ?? 0) + entry.value;
     }
     if (facts.changedFile case final changedFile?) {
       _changedFiles.add(changedFile);
@@ -124,9 +118,8 @@ class _MigrationReportAccumulator {
           if (entry.value != 0) entry.key: entry.value,
       },
       skipReasonCounts: {
-        for (final reason in DeclarationSkipReason.values)
-          if (_skipReasonCounts[reason] != 0)
-            reason: _skipReasonCounts[reason]!,
+        for (final entry in _skipReasonCounts.entries)
+          if (entry.value != 0) entry.key: entry.value,
       },
     );
   }

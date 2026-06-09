@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:act_dart_migrate/act_dart_migrate.dart';
-import 'package:act_dart_migrate/src/discovery.dart';
-import 'package:act_dart_migrate/src/migration.dart';
-import 'package:act_dart_migrate/src/target_package_run.dart';
+import 'package:act_dart_migrate/src/core/discovery.dart';
+import 'package:act_dart_migrate/src/core/exit_codes.dart';
+import 'package:act_dart_migrate/src/core/report_contract.dart';
+import 'package:act_dart_migrate/src/core/target_package_run.dart';
+import 'package:act_dart_migrate/src/migrations/primary_constructors/primary_constructors.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -104,6 +106,7 @@ void main() {
         stdout: stdout,
         stderr: stderr,
         runner: TargetPackageRunner(
+          migration: const PrimaryConstructorMigration(),
           fileSystem: _ThrowingTargetPackageRunFileSystem(),
         ),
       );
@@ -125,7 +128,11 @@ void main() {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final report = MigrationReport(root: normalizedPath(root), dryRun: false);
+      final report = MigrationReport(
+        root: normalizedPath(root),
+        migration: primaryConstructorsMigration,
+        dryRun: false,
+      );
 
       expect(report.toJson(), {
         'ok': true,
@@ -427,6 +434,7 @@ class Skip {
         stdout: stdout,
         stderr: stderr,
         runner: TargetPackageRunner(
+          migration: const PrimaryConstructorMigration(),
           fileSystem: _ThrowingTargetPackageRunFileSystem(),
         ),
       );
@@ -485,16 +493,18 @@ class Skip {
         files: {'lib/user.dart': _fieldFormalClass('User')},
       );
       final runner = TargetPackageRunner(
+        migration: PrimaryConstructorMigration(
+          parseSource: (source, {required path, required input}) {
+            if (!input) {
+              throw MigrationFailure(
+                'Forced transformed-source validation failure for $path.',
+                isInputParseFailure: false,
+              );
+            }
+            return parseTargetDartSource(source, path: path, input: input);
+          },
+        ),
         fileSystem: fileSystem,
-        parseSource: (source, {required path, required input}) {
-          if (!input) {
-            throw MigrationFailure(
-              'Forced transformed-source validation failure for $path.',
-              isInputParseFailure: false,
-            );
-          }
-          return parseTargetDartSource(source, path: path, input: input);
-        },
       );
 
       final exitCode = await runActDartMigrate(
@@ -528,6 +538,7 @@ class Skip {
           stdout: stdout,
           stderr: stderr,
           runner: TargetPackageRunner(
+            migration: const PrimaryConstructorMigration(),
             fileSystem: _ThrowingTargetPackageRunFileSystem(),
           ),
         );
@@ -566,7 +577,10 @@ class Skip {
           ['primary-constructors', '.', '--json'],
           stdout: stdout,
           stderr: stderr,
-          runner: TargetPackageRunner(fileSystem: fileSystem),
+          runner: TargetPackageRunner(
+            migration: const PrimaryConstructorMigration(),
+            fileSystem: fileSystem,
+          ),
         );
 
         expect(exitCode, exitSuccess);

@@ -2,9 +2,10 @@ import 'dart:io' as io;
 
 import 'package:args/args.dart';
 
-import 'exit_codes.dart';
-import 'report.dart';
-import 'target_package_run.dart';
+import 'core/exit_codes.dart';
+import 'core/report_contract.dart';
+import 'core/target_package_run.dart';
+import 'migrations/primary_constructors/primary_constructors.dart';
 import 'version.dart';
 
 Future<int> runActDartMigrate(
@@ -33,7 +34,9 @@ Future<int> runActDartMigrate(
         arguments.skip(1).toList(),
         stdout: out,
         stderr: err,
-        runner: runner ?? TargetPackageRunner(),
+        runner:
+            runner ??
+            TargetPackageRunner(migration: const PrimaryConstructorMigration()),
       );
     }
 

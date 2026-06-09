@@ -1,14 +1,4 @@
-part of '../migration.dart';
-
-class MigrationFailure implements Exception {
-  const MigrationFailure(this.message, {required this.isInputParseFailure});
-
-  final String message;
-  final bool isInputParseFailure;
-
-  @override
-  String toString() => 'MigrationFailure: $message';
-}
+part of 'primary_constructors.dart';
 
 class _ClassMigrationPlan {
   const _ClassMigrationPlan({
@@ -164,7 +154,7 @@ class _FileMigrationReportFacts {
   final List<MigratedDeclarationReport> migratedDeclarations;
   final List<SkippedDeclarationReport> skippedDeclarations;
   final Map<String, int> transformCounts;
-  final Map<DeclarationSkipReason, int> skipReasonCounts;
+  final Map<String, int> skipReasonCounts;
 }
 
 class _DeclarationMigrationPlan {

@@ -1,5 +1,7 @@
-import 'package:act_dart_migrate/act_dart_migrate.dart';
-import 'package:act_dart_migrate/src/discovery.dart';
+import 'package:act_dart_migrate/src/core/discovery.dart';
+import 'package:act_dart_migrate/src/core/report_contract.dart';
+import 'package:act_dart_migrate/src/migrations/primary_constructors/primary_constructors.dart';
+import 'package:act_dart_migrate/src/version.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -7,6 +9,7 @@ void main() {
     test('combines file, directory, and declaration skip counts in order', () {
       final report = MigrationReport.fromRun(
         root: '/target',
+        migrationId: primaryConstructorsMigration,
         dryRun: true,
         discovery: const TargetPackageFiles(
           dartFiles: [],
@@ -27,16 +30,18 @@ void main() {
             ),
           ],
         ),
-        migration: const MigrationRunResult(
+        runResult: MigrationRunResult(
           changedFiles: [],
           migratedDeclarations: [],
           skippedDeclarations: [],
           transformCounts: {},
           skipReasonCounts: {
-            DeclarationSkipReason.fieldMetadata: 2,
-            DeclarationSkipReason.multipleConstructors: 1,
+            DeclarationSkipReason.fieldMetadata.code: 2,
+            DeclarationSkipReason.multipleConstructors.code: 1,
           },
         ),
+        transformOrder: primaryConstructorTransformOrder,
+        skipReasonOrder: primaryConstructorSkipReasonOrder,
       );
 
       expect(report.skipReasonCounts, {
@@ -58,6 +63,7 @@ void main() {
     test('sorts report arrays deterministically when built from a run', () {
       final report = MigrationReport.fromRun(
         root: '/target',
+        migrationId: primaryConstructorsMigration,
         dryRun: false,
         discovery: const TargetPackageFiles(
           dartFiles: [],
@@ -82,7 +88,7 @@ void main() {
             ),
           ],
         ),
-        migration: const MigrationRunResult(
+        runResult: MigrationRunResult(
           changedFiles: ['lib/z.dart', 'lib/a.dart'],
           migratedDeclarations: [
             MigratedDeclarationReport(
@@ -107,7 +113,8 @@ void main() {
               declarationName: 'ZSkip',
               transform: 'primaryConstructor',
               offset: 30,
-              reason: DeclarationSkipReason.namedConstructor,
+              reason: DeclarationSkipReason.namedConstructor.code,
+              message: DeclarationSkipReason.namedConstructor.message,
             ),
             SkippedDeclarationReport(
               path: 'lib/a.dart',
@@ -115,15 +122,18 @@ void main() {
               declarationName: 'ASkip',
               transform: 'primaryConstructor',
               offset: 5,
-              reason: DeclarationSkipReason.fieldMetadata,
+              reason: DeclarationSkipReason.fieldMetadata.code,
+              message: DeclarationSkipReason.fieldMetadata.message,
             ),
           ],
           transformCounts: {'primaryConstructor': 2},
           skipReasonCounts: {
-            DeclarationSkipReason.namedConstructor: 1,
-            DeclarationSkipReason.fieldMetadata: 1,
+            DeclarationSkipReason.namedConstructor.code: 1,
+            DeclarationSkipReason.fieldMetadata.code: 1,
           },
         ),
+        transformOrder: primaryConstructorTransformOrder,
+        skipReasonOrder: primaryConstructorSkipReasonOrder,
       );
       final json = report.toJson();
 
@@ -179,13 +189,14 @@ void main() {
       () {
         final report = MigrationReport.fromRun(
           root: '/target',
+          migrationId: primaryConstructorsMigration,
           dryRun: true,
           discovery: const TargetPackageFiles(
             dartFiles: [],
             skippedFiles: [],
             skippedDirectories: [],
           ),
-          migration: const MigrationRunResult(
+          runResult: MigrationRunResult(
             changedFiles: [],
             migratedDeclarations: [
               MigratedDeclarationReport(
@@ -217,7 +228,8 @@ void main() {
                 declarationName: 'SkippedBody',
                 transform: emptyClassBodyTransform,
                 offset: 20,
-                reason: DeclarationSkipReason.fieldComment,
+                reason: DeclarationSkipReason.fieldComment.code,
+                message: DeclarationSkipReason.fieldComment.message,
               ),
               SkippedDeclarationReport(
                 path: 'lib/source.dart',
@@ -225,7 +237,8 @@ void main() {
                 declarationName: 'SkippedPrimary',
                 transform: primaryConstructorTransform,
                 offset: 20,
-                reason: DeclarationSkipReason.fieldMetadata,
+                reason: DeclarationSkipReason.fieldMetadata.code,
+                message: DeclarationSkipReason.fieldMetadata.message,
               ),
               SkippedDeclarationReport(
                 path: 'lib/source.dart',
@@ -233,7 +246,8 @@ void main() {
                 declarationName: 'SkippedPrimary.named',
                 transform: constructorShorthandTransform,
                 offset: 20,
-                reason: DeclarationSkipReason.constructorMetadata,
+                reason: DeclarationSkipReason.constructorMetadata.code,
+                message: DeclarationSkipReason.constructorMetadata.message,
               ),
             ],
             transformCounts: {
@@ -242,11 +256,13 @@ void main() {
               primaryConstructorTransform: 1,
             },
             skipReasonCounts: {
-              DeclarationSkipReason.fieldComment: 1,
-              DeclarationSkipReason.fieldMetadata: 1,
-              DeclarationSkipReason.constructorMetadata: 1,
+              DeclarationSkipReason.fieldComment.code: 1,
+              DeclarationSkipReason.fieldMetadata.code: 1,
+              DeclarationSkipReason.constructorMetadata.code: 1,
             },
           ),
+          transformOrder: primaryConstructorTransformOrder,
+          skipReasonOrder: primaryConstructorSkipReasonOrder,
         );
 
         final json = report.toJson();
@@ -321,13 +337,14 @@ void main() {
     test('omits absent and zero transform counts', () {
       final report = MigrationReport.fromRun(
         root: '/target',
+        migrationId: primaryConstructorsMigration,
         dryRun: true,
         discovery: const TargetPackageFiles(
           dartFiles: [],
           skippedFiles: [],
           skippedDirectories: [],
         ),
-        migration: const MigrationRunResult(
+        runResult: const MigrationRunResult(
           changedFiles: [],
           migratedDeclarations: [],
           skippedDeclarations: [],
@@ -337,6 +354,8 @@ void main() {
           },
           skipReasonCounts: {},
         ),
+        transformOrder: primaryConstructorTransformOrder,
+        skipReasonOrder: primaryConstructorSkipReasonOrder,
       );
 
       expect(report.toJson()['transformCounts'], {
@@ -345,8 +364,9 @@ void main() {
     });
 
     test('text output summarizes run facts and include-skipped details', () {
-      const report = MigrationReport(
+      final report = MigrationReport(
         root: '/target',
+        migration: primaryConstructorsMigration,
         dryRun: true,
         changedFiles: ['lib/model.dart'],
         migratedDeclarations: [
@@ -365,7 +385,8 @@ void main() {
             declarationName: 'Skip',
             transform: 'primaryConstructor',
             offset: 0,
-            reason: DeclarationSkipReason.fieldMetadata,
+            reason: DeclarationSkipReason.fieldMetadata.code,
+            message: DeclarationSkipReason.fieldMetadata.message,
           ),
         ],
         skippedFiles: [

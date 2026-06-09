@@ -1,4 +1,4 @@
-import 'package:act_dart_migrate/src/source_edit.dart';
+import 'package:act_dart_migrate/src/core/source_edit.dart';
 import 'package:test/test.dart';
 
 void main() {

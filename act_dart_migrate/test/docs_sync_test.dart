@@ -1,7 +1,8 @@
 import 'dart:io';
 
-import 'package:act_dart_migrate/act_dart_migrate.dart';
-import 'package:act_dart_migrate/src/discovery.dart';
+import 'package:act_dart_migrate/src/core/discovery.dart';
+import 'package:act_dart_migrate/src/core/report_contract.dart';
+import 'package:act_dart_migrate/src/migrations/primary_constructors/primary_constructors.dart';
 import 'package:test/test.dart';
 
 void main() {

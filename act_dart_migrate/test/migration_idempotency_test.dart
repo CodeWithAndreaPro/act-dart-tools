@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:act_dart_migrate/act_dart_migrate.dart';
+import 'package:act_dart_migrate/src/core/exit_codes.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';

@@ -1,4 +1,4 @@
-part of '../migration.dart';
+part of 'primary_constructors.dart';
 
 class _ClassPrimaryConstructorPlanner {
   const _ClassPrimaryConstructorPlanner({

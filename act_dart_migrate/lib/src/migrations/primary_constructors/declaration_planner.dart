@@ -1,4 +1,4 @@
-part of '../migration.dart';
+part of 'primary_constructors.dart';
 
 class _TargetFileDeclarationPlanner {
   const _TargetFileDeclarationPlanner({
@@ -119,15 +119,13 @@ class _TargetFileDeclarationPlanner {
     );
   }
 
-  bool _allowsConstructorShorthandAfterPrimarySkip(
-    DeclarationSkipReason reason,
-  ) {
+  bool _allowsConstructorShorthandAfterPrimarySkip(String reason) {
     return switch (reason) {
-      DeclarationSkipReason.namedConstructor ||
-      DeclarationSkipReason.externalConstructor ||
-      DeclarationSkipReason.constructorMetadata ||
-      DeclarationSkipReason.constructorComment ||
-      DeclarationSkipReason.parameterMetadata => true,
+      'namedConstructor' ||
+      'externalConstructor' ||
+      'constructorMetadata' ||
+      'constructorComment' ||
+      'parameterMetadata' => true,
       _ => false,
     };
   }
@@ -213,7 +211,8 @@ class _TargetFileDeclarationPlanner {
               declarationName: declaration.namePart.typeName.lexeme,
               transform: primaryConstructorTransform,
               offset: declaration.offset,
-              reason: reason,
+              reason: reason.code,
+              message: reason.message,
             ),
           ],
         ),
@@ -241,7 +240,8 @@ class _TargetFileDeclarationPlanner {
               declarationName: declaration.namePart.typeName.lexeme,
               transform: primaryConstructorTransform,
               offset: declaration.offset,
-              reason: reason,
+              reason: reason.code,
+              message: reason.message,
             ),
           ],
         ),
@@ -271,7 +271,8 @@ class _TargetFileDeclarationPlanner {
       declarationName: declaration.namePart.typeName.lexeme,
       transform: emptyClassBodyTransform,
       offset: declaration.offset,
-      reason: reason,
+      reason: reason.code,
+      message: reason.message,
     );
   }
 }
@@ -317,12 +318,10 @@ class _TargetFileMigrationPlanBuilder {
           (transformCounts[declaration.transform] ?? 0) + 1;
     }
 
-    final skipReasonCounts = {
-      for (final reason in DeclarationSkipReason.values) reason: 0,
-    };
+    final skipReasonCounts = <String, int>{};
     for (final declaration in _skippedDeclarations) {
       skipReasonCounts[declaration.reason] =
-          skipReasonCounts[declaration.reason]! + 1;
+          (skipReasonCounts[declaration.reason] ?? 0) + 1;
     }
 
     return _FileMigrationReportFacts(

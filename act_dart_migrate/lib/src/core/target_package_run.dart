@@ -2,8 +2,8 @@ import 'dart:io' as io;
 
 import 'discovery.dart';
 import 'exit_codes.dart';
-import 'migration.dart';
-import 'report.dart';
+import 'package_root.dart';
+import 'report_contract.dart';
 
 class TargetPackageRunRequest {
   const TargetPackageRunRequest({required this.root, required this.dryRun});
@@ -45,25 +45,41 @@ abstract interface class TargetPackageRunFileSystem {
   void writeDartFile(TargetDartFile file, String source);
 }
 
+typedef ReadTargetDartFile = String Function(TargetDartFile file);
+
+typedef WriteTargetDartFile = void Function(TargetDartFile file, String source);
+
+abstract interface class TargetPackageMigration {
+  String get identifier;
+
+  List<String> get transformOrder;
+
+  List<String> get skipReasonOrder;
+
+  MigrationRunResult run({
+    required List<TargetDartFile> files,
+    required bool dryRun,
+    required ReadTargetDartFile readFile,
+    required WriteTargetDartFile writeFile,
+  });
+}
+
+class MigrationFailure implements Exception {
+  const MigrationFailure(this.message, {required this.isInputParseFailure});
+
+  final String message;
+  final bool isInputParseFailure;
+
+  @override
+  String toString() => 'MigrationFailure: $message';
+}
+
 class LocalTargetPackageRunFileSystem implements TargetPackageRunFileSystem {
   const LocalTargetPackageRunFileSystem();
 
   @override
   String? normalizePackageRoot(String? root) {
-    if (root == null || root.isEmpty) {
-      return null;
-    }
-    final directory = io.Directory(root);
-    if (!directory.existsSync()) {
-      return null;
-    }
-    final pubspec = io.File(
-      '${directory.path}${io.Platform.pathSeparator}pubspec.yaml',
-    );
-    if (!pubspec.existsSync()) {
-      return null;
-    }
-    return _reportRootPath(directory);
+    return normalizeTargetPackageRoot(root);
   }
 
   @override
@@ -84,13 +100,12 @@ class LocalTargetPackageRunFileSystem implements TargetPackageRunFileSystem {
 
 class TargetPackageRunner {
   TargetPackageRunner({
+    required this.migration,
     TargetPackageRunFileSystem? fileSystem,
-    ParseTargetDartSource? parseSource,
-  }) : fileSystem = fileSystem ?? const LocalTargetPackageRunFileSystem(),
-       parseSource = parseSource ?? parseTargetDartSource;
+  }) : fileSystem = fileSystem ?? const LocalTargetPackageRunFileSystem();
 
+  final TargetPackageMigration migration;
   final TargetPackageRunFileSystem fileSystem;
-  final ParseTargetDartSource parseSource;
 
   TargetPackageRunOutcome run(TargetPackageRunRequest request) {
     final root = fileSystem.normalizePackageRoot(request.root);
@@ -105,14 +120,13 @@ class TargetPackageRunner {
     }
 
     final discovery = fileSystem.discover(root);
-    late final MigrationRunResult migration;
+    late final MigrationRunResult runResult;
     try {
-      migration = migrateTargetPackageFiles(
+      runResult = migration.run(
         files: discovery.dartFiles,
         dryRun: request.dryRun,
         readFile: fileSystem.readDartFile,
         writeFile: fileSystem.writeDartFile,
-        parseSource: parseSource,
       );
     } on MigrationFailure catch (error) {
       return TargetPackageRunOutcome.failure(
@@ -131,26 +145,17 @@ class TargetPackageRunner {
     return TargetPackageRunOutcome.success(
       MigrationReport.fromRun(
         root: root,
+        migrationId: migration.identifier,
         dryRun: request.dryRun,
         discovery: discovery,
-        migration: migration,
+        runResult: runResult,
+        transformOrder: migration.transformOrder,
+        skipReasonOrder: migration.skipReasonOrder,
       ),
     );
   }
 }
 
-String _reportRootPath(io.Directory directory) {
-  final path = directory.absolute.uri.normalizePath().toFilePath();
-  final separator = io.Platform.pathSeparator;
-  if (path.length > separator.length && path.endsWith(separator)) {
-    return path.substring(0, path.length - separator.length);
-  }
-  return path;
-}
-
 String _invalidRootMessage(String? root) {
-  if (root == null || root.isEmpty) {
-    return 'A target package root is required.';
-  }
-  return 'Target package root does not exist or has no pubspec.yaml: $root';
+  return invalidTargetPackageRootMessage(root);
 }

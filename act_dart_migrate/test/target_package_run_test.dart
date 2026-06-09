@@ -1,7 +1,7 @@
-import 'package:act_dart_migrate/src/discovery.dart';
-import 'package:act_dart_migrate/src/exit_codes.dart';
-import 'package:act_dart_migrate/src/migration.dart';
-import 'package:act_dart_migrate/src/target_package_run.dart';
+import 'package:act_dart_migrate/src/core/discovery.dart';
+import 'package:act_dart_migrate/src/core/exit_codes.dart';
+import 'package:act_dart_migrate/src/core/target_package_run.dart';
+import 'package:act_dart_migrate/src/migrations/primary_constructors/primary_constructors.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -13,6 +13,7 @@ void main() {
       );
 
       final outcome = TargetPackageRunner(
+        migration: const PrimaryConstructorMigration(),
         fileSystem: fileSystem,
       ).run(const TargetPackageRunRequest(root: _root, dryRun: true));
 
@@ -30,6 +31,7 @@ void main() {
       );
 
       final outcome = TargetPackageRunner(
+        migration: const PrimaryConstructorMigration(),
         fileSystem: fileSystem,
       ).run(const TargetPackageRunRequest(root: _root, dryRun: false));
 
@@ -46,6 +48,7 @@ void main() {
       );
 
       final outcome = TargetPackageRunner(
+        migration: const PrimaryConstructorMigration(),
         fileSystem: fileSystem,
       ).run(const TargetPackageRunRequest(root: _root, dryRun: false));
 
@@ -61,16 +64,18 @@ void main() {
         files: {'lib/user.dart': _fieldFormalClass('User')},
       );
       final runner = TargetPackageRunner(
+        migration: PrimaryConstructorMigration(
+          parseSource: (source, {required path, required input}) {
+            if (!input) {
+              throw MigrationFailure(
+                'Forced transformed-source validation failure for $path.',
+                isInputParseFailure: false,
+              );
+            }
+            return parseTargetDartSource(source, path: path, input: input);
+          },
+        ),
         fileSystem: fileSystem,
-        parseSource: (source, {required path, required input}) {
-          if (!input) {
-            throw MigrationFailure(
-              'Forced transformed-source validation failure for $path.',
-              isInputParseFailure: false,
-            );
-          }
-          return parseTargetDartSource(source, path: path, input: input);
-        },
       );
 
       final outcome = runner.run(
@@ -112,6 +117,7 @@ void main() {
       );
 
       final outcome = TargetPackageRunner(
+        migration: const PrimaryConstructorMigration(),
         fileSystem: fileSystem,
       ).run(const TargetPackageRunRequest(root: _root, dryRun: true));
 

@@ -39,9 +39,7 @@ Future<int> runActDartMigrate(
         arguments.skip(1).toList(),
         stdout: out,
         stderr: err,
-        runner:
-            runner ??
-            TargetPackageRunner(migration: const PrimaryConstructorMigration()),
+        runner: runner,
       );
     }
 
@@ -71,7 +69,7 @@ Future<int> _runPrimaryConstructors(
   List<String> arguments, {
   required StringSink stdout,
   required StringSink stderr,
-  required TargetPackageRunner runner,
+  required TargetPackageRunner? runner,
 }) async {
   final parser = ArgParser()
     ..addFlag(
@@ -88,6 +86,13 @@ Future<int> _runPrimaryConstructors(
       'include-skipped',
       negatable: false,
       help: 'Include skipped declarations in text output.',
+    )
+    ..addFlag(
+      primaryConstructorsSkipSuperConstructorInitializersFlag,
+      negatable: false,
+      help:
+          'Skip retained super(...) and super.named(...) initializer migrations '
+          'as a Dart SDK primary-constructor workaround.',
     );
 
   final jsonRequested = arguments.contains('--json');
@@ -123,8 +128,17 @@ Future<int> _runPrimaryConstructors(
   }
 
   final root = results.rest.single;
+  final targetPackageRunner =
+      runner ??
+      TargetPackageRunner(
+        migration: PrimaryConstructorMigration(
+          skipSuperConstructorInitializers: results.flag(
+            primaryConstructorsSkipSuperConstructorInitializersFlag,
+          ),
+        ),
+      );
 
-  final outcome = runner.run(
+  final outcome = targetPackageRunner.run(
     TargetPackageRunRequest(root: root, dryRun: results.flag('dry-run')),
   );
   if (outcome.report case final report?) {
@@ -229,6 +243,7 @@ Options:
   --dry-run           Preview the migration without writing files.
   --json              Emit a machine-readable JSON report.
   --include-skipped   Include skipped declarations in text output.
+  --skip-super-constructor-initializers   Skip retained super(...) and super.named(...) initializer migrations as a Dart SDK primary-constructor workaround.
 ''';
 
 String _unknownSubcommandMessage(String subcommand) {

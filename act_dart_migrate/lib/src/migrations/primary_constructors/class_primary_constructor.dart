@@ -5,11 +5,13 @@ class _ClassPrimaryConstructorPlanner {
     required this.source,
     required this.targetFile,
     required this.declaration,
+    required this.skipSuperConstructorInitializers,
   });
 
   final String source;
   final TargetDartFile targetFile;
   final ClassDeclaration declaration;
+  final bool skipSuperConstructorInitializers;
 
   _ClassPrimaryConstructorDecision decide() {
     if (declaration.namePart is PrimaryConstructorDeclaration) {
@@ -93,6 +95,12 @@ class _ClassPrimaryConstructorPlanner {
         !realizationPlan.primaryBodyRequired) {
       return const _SkippedClassPrimaryConstructor(
         DeclarationSkipReason.emptyNonConstConstructorWithMembers,
+      );
+    }
+    if (skipSuperConstructorInitializers &&
+        realizationPlan.hasRetainedSuperConstructorInitializer) {
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.superConstructorInitializer,
       );
     }
 

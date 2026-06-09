@@ -195,6 +195,13 @@ class MigrationReport {
       }
     }
 
+    if (includeSkipped && skipReasonCounts.isNotEmpty) {
+      buffer.writeln('Skip reason counts:');
+      for (final entry in skipReasonCounts.entries) {
+        buffer.writeln('- ${entry.key}: ${entry.value}');
+      }
+    }
+
     return buffer.toString();
   }
 }

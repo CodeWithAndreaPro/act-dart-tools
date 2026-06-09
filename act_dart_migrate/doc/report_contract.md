@@ -71,6 +71,11 @@ reasons include `nestedPackage`, `nestedRepository`, and `excludedDirectory`.
 `skipReasonCounts` combines declaration, skipped-file, and skipped-directory
 reason counts. Report arrays and count maps are deterministic.
 
+The opt-in `--skip-super-constructor-initializers` workaround reports skipped
+class declarations with reason code `superConstructorInitializer` when a class
+primary-constructor migration would otherwise retain an explicit `super(...)` or
+`super.named(...)` initializer.
+
 ## Failure Envelope
 
 Failure JSON output has `ok: false` and an `error` object:

@@ -79,6 +79,7 @@ dart run act_dart_migrate list --json
 dart run act_dart_migrate primary-constructors <target-package> --json
 dart run act_dart_migrate primary-constructors <target-package> --dry-run
 dart run act_dart_migrate primary-constructors <target-package> --include-skipped
+dart run act_dart_migrate primary-constructors <target-package> --skip-super-constructor-initializers
 ```
 
 Running the executable without arguments prints concise usage and exits
@@ -105,6 +106,12 @@ Without `--json`, text output is concise by default and summarizes counts.
 `--include-skipped` expands text output with skipped declarations, skipped files,
 and skipped directories. `--include-skipped` does not change JSON output because
 JSON always includes skipped records.
+
+`--skip-super-constructor-initializers` is not enabled by default. It is an
+opt-in Dart SDK primary-constructor workaround that skips otherwise eligible
+class migrations whose primary-constructor body would retain an explicit
+`super(...)` or `super.named(...)` initializer. It does not skip classes merely
+because a constructor uses super parameters such as `super.key`.
 
 ## Package Docs
 

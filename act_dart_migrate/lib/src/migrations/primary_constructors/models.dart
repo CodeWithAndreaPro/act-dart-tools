@@ -78,11 +78,13 @@ class _ConstructorInitializationPlan {
     required this.privateFieldInitializersByName,
     required this.fieldInitializers,
     required this.primaryBodySource,
+    required this.hasRetainedSuperConstructorInitializer,
   });
 
   final Map<String, String> privateFieldInitializersByName;
   final List<_FieldInitializerMigration> fieldInitializers;
   final String? primaryBodySource;
+  final bool hasRetainedSuperConstructorInitializer;
 
   bool get primaryBodyRequired => primaryBodySource != null;
 }
@@ -92,11 +94,13 @@ class _ConstructorRealizationPlan {
     required this.parameterPlans,
     required this.fieldInitializerEdits,
     required this.primaryBodySource,
+    required this.hasRetainedSuperConstructorInitializer,
   });
 
   final List<_ParameterMigrationPlan> parameterPlans;
   final List<SourceEdit> fieldInitializerEdits;
   final String? primaryBodySource;
+  final bool hasRetainedSuperConstructorInitializer;
 
   bool get primaryBodyRequired => primaryBodySource != null;
 }

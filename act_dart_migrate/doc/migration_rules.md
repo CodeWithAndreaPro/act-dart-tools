@@ -27,8 +27,16 @@ simple `super` parameters.
 
 Class primary-constructor migration may also move safe parameter-only field
 initializer assignments to field declarations. Constructor assertions and
-unnamed `super(...)` initializers may be retained in a primary constructor body
-when doing so preserves their order and meaning.
+explicit super constructor initializers such as `super(...)` and
+`super.named(...)` may be retained in a primary constructor body when doing so
+preserves their order and meaning.
+
+By default, retained explicit super constructor initializers are migrated for
+maximum coverage. The opt-in `--skip-super-constructor-initializers` flag is a
+temporary Dart SDK primary-constructor workaround that skips otherwise eligible
+class migrations whose primary-constructor body would retain `super(...)` or
+`super.named(...)`. Super parameters such as `super.key` do not trigger that
+flag-specific skip.
 
 Enhanced-enum primary-constructor migration preserves enum value argument shape
 and retained enum members such as methods, getters, factories, and static
@@ -88,8 +96,11 @@ Constructor body and initializer safety:
 - `unsafeInitializerOrder`: moving field initializer assignments would change
   initializer evaluation order.
 - `unsupportedInitializer`: an initializer entry is not supported.
-- `namedSuperInitializer`: named `super` constructor initializers are not
-  migrated.
+- `superConstructorInitializer`: `--skip-super-constructor-initializers` skipped
+  an otherwise eligible migration that would retain an explicit super
+  constructor initializer as a Dart SDK primary-constructor workaround.
+- `namedSuperInitializer`: stable reserved reason code for named `super`
+  constructor initializer skips.
 
 Metadata and comments that would move or disappear:
 

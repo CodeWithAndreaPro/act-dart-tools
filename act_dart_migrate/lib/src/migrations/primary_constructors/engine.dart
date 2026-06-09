@@ -12,6 +12,7 @@ MigrationRunResult migrateTargetPackageFiles({
   required bool dryRun,
   required ReadTargetDartFile readFile,
   required WriteTargetDartFile writeFile,
+  bool skipSuperConstructorInitializers = false,
   ParseTargetDartSource? parseSource,
 }) {
   return _MigrationEngine(
@@ -19,6 +20,7 @@ MigrationRunResult migrateTargetPackageFiles({
     dryRun: dryRun,
     readFile: readFile,
     writeFile: writeFile,
+    skipSuperConstructorInitializers: skipSuperConstructorInitializers,
     parseSource: parseSource ?? parseTargetDartSource,
   ).run();
 }
@@ -29,6 +31,7 @@ class _MigrationEngine {
     required this.dryRun,
     required this.readFile,
     required this.writeFile,
+    required this.skipSuperConstructorInitializers,
     required this.parseSource,
   });
 
@@ -36,6 +39,7 @@ class _MigrationEngine {
   final bool dryRun;
   final ReadTargetDartFile readFile;
   final WriteTargetDartFile writeFile;
+  final bool skipSuperConstructorInitializers;
   final ParseTargetDartSource parseSource;
 
   MigrationRunResult run() {
@@ -47,6 +51,7 @@ class _MigrationEngine {
       final plan = _TargetFileDeclarationPlanner(
         targetFile: targetFile,
         source: source,
+        skipSuperConstructorInitializers: skipSuperConstructorInitializers,
         parseSource: parseSource,
       ).plan();
       if (plan == null) {

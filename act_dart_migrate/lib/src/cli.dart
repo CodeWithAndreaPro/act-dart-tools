@@ -2,6 +2,7 @@ import 'dart:io' as io;
 
 import 'package:args/args.dart';
 
+import 'core/command_discovery.dart';
 import 'core/exit_codes.dart';
 import 'core/report_contract.dart';
 import 'core/target_package_run.dart';
@@ -26,6 +27,10 @@ Future<int> runActDartMigrate(
     if (arguments.length == 1 && arguments.single == '--version') {
       out.writeln(packageVersion);
       return exitSuccess;
+    }
+
+    if (arguments.isNotEmpty && arguments.first == 'list') {
+      return _runList(arguments.skip(1).toList(), stdout: out, stderr: err);
     }
 
     if (arguments.isNotEmpty &&
@@ -143,12 +148,76 @@ Future<int> _runPrimaryConstructors(
   return outcome.exitCode;
 }
 
+int _runList(
+  List<String> arguments, {
+  required StringSink stdout,
+  required StringSink stderr,
+}) {
+  final parser = ArgParser()
+    ..addFlag(
+      'json',
+      negatable: false,
+      help: 'Emit machine-readable command discovery JSON.',
+    );
+
+  final jsonRequested = arguments.contains('--json');
+  late final ArgResults results;
+  try {
+    results = parser.parse(arguments);
+  } on FormatException catch (error) {
+    return _writeError(
+      CliErrorReport(code: 'argumentError', message: error.message),
+      exitArgumentError,
+      json: jsonRequested,
+      stdout: stdout,
+      stderr: stderr,
+    );
+  }
+
+  if (results.rest.isNotEmpty) {
+    return _writeError(
+      const CliErrorReport(
+        code: 'argumentError',
+        message: 'The list command does not accept positional arguments.',
+      ),
+      exitArgumentError,
+      json: results.flag('json'),
+      stdout: stdout,
+      stderr: stderr,
+    );
+  }
+
+  if (!results.flag('json')) {
+    return _writeError(
+      const CliErrorReport(
+        code: 'argumentError',
+        message: 'The list command only supports --json.',
+      ),
+      exitArgumentError,
+      json: false,
+      stdout: stdout,
+      stderr: stderr,
+    );
+  }
+
+  stdout.writeln(
+    const CommandDiscoveryReport(
+      migrations: [primaryConstructorsCommandMetadata],
+    ).toJsonString(),
+  );
+  return exitSuccess;
+}
+
 const _rootHelpOutput = '''ACT Dart Migrate runs Dart migration subcommands.
 
 Usage:
   dart run act_dart_migrate
   dart run act_dart_migrate --version
+  dart run act_dart_migrate list --json
   dart run act_dart_migrate primary-constructors <target-package> [options]
+
+Utility Commands:
+  list --json        List supported Migration Subcommands.
 
 Migration Subcommands:
   primary-constructors   Migrate Dart declarations to primary-constructor syntax.

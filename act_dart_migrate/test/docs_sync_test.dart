@@ -13,6 +13,7 @@ void main() {
     _expectAllPresent(readme, [
       'dart run $_packageName',
       'dart run $_packageName --version',
+      'dart run $_packageName list --json',
       'dart run $_packageName $primaryConstructorsMigration '
           '<target-package> --json',
       'dart run $_packageName $primaryConstructorsMigration '

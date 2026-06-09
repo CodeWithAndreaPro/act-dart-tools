@@ -6,6 +6,7 @@ import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
 import '../../core/discovery.dart';
+import '../../core/command_discovery.dart';
 import '../../core/report_contract.dart';
 import '../../core/source_edit.dart';
 import '../../core/target_package_run.dart';
@@ -23,6 +24,20 @@ part 'models.dart';
 part 'source_helpers.dart';
 
 const primaryConstructorsMigration = 'primary-constructors';
+const primaryConstructorsCommandMetadata = MigrationCommandMetadata(
+  id: primaryConstructorsMigration,
+  displayName: 'Primary Constructors',
+  status: 'stable',
+  minimumDartSdk: '3.12.0',
+  requiredExperiments: ['primary-constructors'],
+  supportedCommandSyntax: [
+    'dart run act_dart_migrate primary-constructors <target-package> --json',
+    'dart run act_dart_migrate primary-constructors <target-package> --dry-run',
+    'dart run act_dart_migrate primary-constructors <target-package> --include-skipped',
+  ],
+  description:
+      'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax.',
+);
 const primaryConstructorTransform = 'primaryConstructor';
 const constructorShorthandTransform = 'constructorShorthand';
 const emptyClassBodyTransform = 'emptyClassBody';

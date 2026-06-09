@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:act_dart_migrate/act_dart_migrate.dart';
+import 'package:act_dart_migrate/src/core/command_discovery.dart';
 import 'package:act_dart_migrate/src/core/discovery.dart';
 import 'package:act_dart_migrate/src/core/exit_codes.dart';
 import 'package:act_dart_migrate/src/core/report_contract.dart';
@@ -46,6 +47,7 @@ void main() {
       );
       expect(output, contains('Usage:'));
       expect(output, contains('--version'));
+      expect(output, contains('list --json'));
       expect(output, contains('Migration Subcommands:'));
       expect(output, contains('primary-constructors'));
       expect(
@@ -119,6 +121,123 @@ void main() {
       expect(decoded['error'], {
         'code': 'argumentError',
         'message': 'Could not find an option named "--help".',
+      });
+    });
+  });
+
+  group('command discovery', () {
+    test('list --json serializes supported migrations to stdout only', () async {
+      final stdout = StringBuffer();
+      final stderr = StringBuffer();
+
+      final exitCode = await runActDartMigrate(
+        ['list', '--json'],
+        stdout: stdout,
+        stderr: stderr,
+        runner: TargetPackageRunner(
+          migration: const PrimaryConstructorMigration(),
+          fileSystem: _ThrowingTargetPackageRunFileSystem(),
+        ),
+      );
+
+      expect(exitCode, exitSuccess);
+      expect(stderr.toString(), isEmpty);
+      expect(stdout.toString().trim().split('\n'), hasLength(1));
+      final decoded = jsonDecode(stdout.toString()) as Map<String, Object?>;
+      expect(decoded.keys, [
+        'ok',
+        'schemaVersion',
+        'toolVersion',
+        'migrations',
+      ]);
+      expect(decoded, {
+        'ok': true,
+        'schemaVersion': schemaVersion,
+        'toolVersion': packageVersion,
+        'migrations': [
+          {
+            'id': primaryConstructorsMigration,
+            'displayName': 'Primary Constructors',
+            'status': 'stable',
+            'minimumDartSdk': '3.12.0',
+            'requiredExperiments': ['primary-constructors'],
+            'supportedCommandSyntax': [
+              'dart run act_dart_migrate primary-constructors <target-package> --json',
+              'dart run act_dart_migrate primary-constructors <target-package> --dry-run',
+              'dart run act_dart_migrate primary-constructors <target-package> --include-skipped',
+            ],
+            'description':
+                'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax.',
+          },
+        ],
+      });
+    });
+
+    test('command discovery orders migrations by id', () {
+      const alpha = MigrationCommandMetadata(
+        id: 'alpha',
+        displayName: 'Alpha',
+        status: 'experimental',
+        minimumDartSdk: '3.12.0',
+        requiredExperiments: [],
+        supportedCommandSyntax: [],
+        description: 'Alpha migration.',
+      );
+      const beta = MigrationCommandMetadata(
+        id: 'beta',
+        displayName: 'Beta',
+        status: 'stable',
+        minimumDartSdk: '3.12.0',
+        requiredExperiments: [],
+        supportedCommandSyntax: [],
+        description: 'Beta migration.',
+      );
+
+      final report = CommandDiscoveryReport(migrations: [beta, alpha]);
+      final migrations = report.toJson()['migrations'] as List<Object?>;
+
+      expect(
+        [
+          for (final migration in migrations.cast<Map<String, Object?>>())
+            migration['id'],
+        ],
+        ['alpha', 'beta'],
+      );
+    });
+
+    test('list without --json is unsupported text discovery', () async {
+      final result = await runCli(['list']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, contains('The list command only supports --json.'));
+    });
+
+    test('list argument errors are root-level machine-readable JSON', () async {
+      final result = await runCli(['list', '--unsupported', '--json']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded.keys, ['ok', 'schemaVersion', 'toolVersion', 'error']);
+      expect(decoded['ok'], isFalse);
+      expect(decoded, isNot(contains('migration')));
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message': 'Could not find an option named "--unsupported".',
+      });
+    });
+
+    test('list positional errors omit migration', () async {
+      final result = await runCli(['list', 'extra', '--json']);
+
+      expect(result.exitCode, exitArgumentError);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded, isNot(contains('migration')));
+      expect(decoded['error'], {
+        'code': 'argumentError',
+        'message': 'The list command does not accept positional arguments.',
       });
     });
   });

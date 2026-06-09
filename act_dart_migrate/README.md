@@ -75,6 +75,7 @@ Run the CLI like this:
 ```bash
 dart run act_dart_migrate
 dart run act_dart_migrate --version
+dart run act_dart_migrate list --json
 dart run act_dart_migrate primary-constructors <target-package> --json
 dart run act_dart_migrate primary-constructors <target-package> --dry-run
 dart run act_dart_migrate primary-constructors <target-package> --include-skipped
@@ -83,6 +84,10 @@ dart run act_dart_migrate primary-constructors <target-package> --include-skippe
 Running the executable without arguments prints concise usage and exits
 successfully. Root `--version` prints the package version without selecting a
 Migration Subcommand.
+
+`list --json` writes a machine-readable discovery response for supported
+Migration Subcommands without requiring a Target Package or running migration
+planning.
 
 The required `target-package` positional argument selects the Target package
 root. Use `.` to migrate the current working directory. The root must be a

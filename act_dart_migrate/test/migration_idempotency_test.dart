@@ -282,11 +282,7 @@ Future<void> expectIdempotentMigration({
     writeFile(root, entry.key, entry.value);
   }
 
-  final firstResult = await runCli([
-    'primary-constructors',
-    root.path,
-    '--json',
-  ]);
+  final firstResult = await runCliPrimaryConstructors(root.path);
   final firstReport = expectMigrationResult(firstResult);
   expect(firstReport['changedFiles'], expectedFirstChangedFiles);
   expect(
@@ -306,11 +302,7 @@ Future<void> expectIdempotentMigration({
     filesAfterFirstRun[entry.key] = source;
   }
 
-  final secondResult = await runCli([
-    'primary-constructors',
-    root.path,
-    '--json',
-  ]);
+  final secondResult = await runCliPrimaryConstructors(root.path);
   final secondReport = expectMigrationResult(secondResult);
   expect(secondReport['changedFiles'], isEmpty);
   expect(secondReport['migratedDeclarations'], isEmpty);

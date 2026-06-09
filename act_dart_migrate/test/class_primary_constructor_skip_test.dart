@@ -21,11 +21,7 @@ class Already(final String id);
 ''';
         writeFile(root, 'lib/source.dart', originalSource);
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -65,11 +61,7 @@ class Already(final String id);
 ''';
         writeFile(root, 'lib/source.dart', originalSource);
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -167,11 +159,7 @@ class PlainAfter {
 ''';
         writeFile(root, 'lib/source.dart', originalSource);
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -363,11 +351,7 @@ class AddInvestmentChoice {
 ''';
       writeFile(root, 'lib/add_investment_choice.dart', originalSource);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -439,11 +423,7 @@ class ShorthandSafety {
 ''';
       writeFile(root, 'lib/shorthand_safety.dart', originalSource);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -531,11 +511,7 @@ class ConstructorShorthandRegression {
           originalSource,
         );
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -658,11 +634,7 @@ class ConstructorDocumentationComment {
           addTearDown(() => root.deleteSync(recursive: true));
           writeFile(root, scenario.relativePath, scenario.source);
 
-          final result = await runCli([
-            'primary-constructors',
-            root.path,
-            '--json',
-          ]);
+          final result = await runCliPrimaryConstructors(root.path);
 
           expect(result.exitCode, exitSuccess);
           expect(result.stderr, isEmpty);
@@ -712,11 +684,7 @@ class AppDatabase extends _\$AppDatabase {
 ''';
         writeFile(root, 'lib/app_database.dart', originalSource);
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);

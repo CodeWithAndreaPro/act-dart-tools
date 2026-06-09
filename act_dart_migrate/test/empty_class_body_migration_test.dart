@@ -14,11 +14,7 @@ void main() {
 class Empty {}
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -53,11 +49,7 @@ class DatabaseIOError(final String message) extends DatabaseIOResult;
 ''';
       writeFile(root, 'lib/already_empty.dart', originalSource);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -83,11 +75,7 @@ class User {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -116,11 +104,7 @@ class Named {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -157,11 +141,7 @@ class Commented {
 ''';
       writeFile(root, 'lib/commented.dart', originalSource);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -195,11 +175,7 @@ extension type Identifier(String value) {}
 ''';
       writeFile(root, 'lib/unsupported.dart', originalSource);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);

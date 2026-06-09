@@ -21,11 +21,7 @@ enum HttpStatus {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -55,11 +51,7 @@ enum SeverityProbe {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -88,11 +80,7 @@ enum EnumMultiVariableProbe {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -121,11 +109,7 @@ enum ButtonSize {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -157,11 +141,7 @@ enum TokenKind {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -204,11 +184,7 @@ enum Permission {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -247,11 +223,7 @@ enum Score {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -289,11 +261,7 @@ enum Guarded {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -492,11 +460,7 @@ enum HttpStatus {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);

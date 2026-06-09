@@ -149,11 +149,7 @@ void main() {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -213,11 +209,7 @@ void main() {
         'void checkout() {}',
       );
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -252,11 +244,7 @@ class Skip {
 ''';
       writeFile(root, 'lib/skip.dart', source);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -287,11 +275,7 @@ class Skip {
       writeFile(root, 'build/broken.dart', 'class {');
       writeFile(root, 'lib/source.dart', 'void source() {}');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -479,11 +463,7 @@ class Skip {
       addTearDown(() => root.deleteSync(recursive: true));
       writeFile(root, 'lib/broken.dart', 'class {');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitParseFailure);
       expect(result.stderr, isEmpty);
@@ -641,11 +621,7 @@ class Skip {
       );
       addTearDown(() => root.deleteSync(recursive: true));
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitInvalidRoot);
       expect(result.stderr, isEmpty);

@@ -39,6 +39,10 @@ Future<ProcessResult> runCli(List<String> arguments) {
   ]);
 }
 
+Future<ProcessResult> runCliPrimaryConstructors(String targetRootPath) {
+  return runCli(['primary-constructors', targetRootPath, '--json']);
+}
+
 Map<String, Object?> expectSinglePrimaryConstructorMigration(
   ProcessResult result, {
   required String path,
@@ -87,7 +91,7 @@ Future<Map<String, Object?>> expectSinglePrimaryConstructorSkip({
   addTearDown(() => root.deleteSync(recursive: true));
   writeFile(root, relativePath, originalSource);
 
-  final result = await runCli(['primary-constructors', root.path, '--json']);
+  final result = await runCliPrimaryConstructors(root.path);
 
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);

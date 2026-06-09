@@ -19,11 +19,7 @@ class User {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -65,11 +61,7 @@ class ParameterMetadataProbe {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -93,11 +85,7 @@ class Counter {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -117,11 +105,7 @@ class MultiVariableAllMappedProbe {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -155,11 +139,7 @@ class FieldWriteCombinationProbe {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -194,11 +174,7 @@ class Palette {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -219,11 +195,7 @@ class Person {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -250,11 +222,7 @@ class Item {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -285,11 +253,7 @@ class Rate {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -323,11 +287,7 @@ class ConsumerWidget {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -363,11 +323,7 @@ class Investment {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -400,11 +356,7 @@ class Symbol {
 enum SymbolPriceSource { manual }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -435,11 +387,7 @@ class Range {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -465,11 +413,7 @@ class Item {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -516,11 +460,7 @@ class Product {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -565,11 +505,7 @@ abstract class Named {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -603,11 +539,7 @@ class _Secret {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -634,11 +566,7 @@ class Profile {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -667,11 +595,7 @@ class Session {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -701,11 +625,7 @@ class Account {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -736,11 +656,7 @@ class Account {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -770,11 +686,7 @@ class Widget {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -802,11 +714,7 @@ class Marker {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -829,11 +737,7 @@ class Empty {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -861,11 +765,7 @@ class CommentedEmpty {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         final decoded = expectSinglePrimaryConstructorMigration(
           result,
@@ -936,11 +836,7 @@ class Score {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -971,11 +867,7 @@ class AppRobot {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1006,11 +898,7 @@ class NamedConstructorCallInitializerProbe {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1036,11 +924,7 @@ class Checked {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1070,11 +954,7 @@ class Pair {
 ''';
         writeFile(root, 'lib/pair.dart', originalSource);
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expect(result.exitCode, exitSuccess);
         expect(result.stderr, isEmpty);
@@ -1125,11 +1005,7 @@ class RedirectingMetadataProbe {
 ''';
       writeFile(root, 'lib/redirecting_metadata.dart', originalSource);
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
@@ -1181,11 +1057,7 @@ class Widget {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1217,11 +1089,7 @@ class NamedSuperInitializerProbe extends ParentProbe {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1250,11 +1118,7 @@ class OrderedNamedSuper extends Base {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1288,11 +1152,7 @@ class Base {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1328,11 +1188,7 @@ class Guarded {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1365,11 +1221,7 @@ class CurrencyApiClient implements ApiClient {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       final decoded = expectSinglePrimaryConstructorMigration(
         result,
@@ -1401,11 +1253,7 @@ class FrankfurterClient implements ApiClient {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       final decoded = expectSinglePrimaryConstructorMigration(
         result,
@@ -1444,11 +1292,7 @@ class GoldApiClient {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1486,11 +1330,7 @@ class FrankfurterClient {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1526,11 +1366,7 @@ class Tracker {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1563,11 +1399,7 @@ class UnmappedFieldsProbe {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1608,11 +1440,7 @@ class _FakeGeneratorService implements RandomDataGeneratorService {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       final decoded = expectSinglePrimaryConstructorMigration(
         result,
@@ -1662,11 +1490,7 @@ class ShadowedBody {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1703,11 +1527,7 @@ class Documented {
 }
 ''');
 
-        final result = await runCli([
-          'primary-constructors',
-          root.path,
-          '--json',
-        ]);
+        final result = await runCliPrimaryConstructors(root.path);
 
         expectSinglePrimaryConstructorMigration(
           result,
@@ -1736,11 +1556,7 @@ class LineCommented {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1770,11 +1586,7 @@ class BlockCommented {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,
@@ -1806,11 +1618,7 @@ class DocumentedMember {
 }
 ''');
 
-      final result = await runCli([
-        'primary-constructors',
-        root.path,
-        '--json',
-      ]);
+      final result = await runCliPrimaryConstructors(root.path);
 
       expectSinglePrimaryConstructorMigration(
         result,

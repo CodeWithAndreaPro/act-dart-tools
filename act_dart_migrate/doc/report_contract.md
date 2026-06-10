@@ -1,16 +1,12 @@
 # Report Contract
 
-ACT Dart Migrate emits deterministic text or JSON reports for the selected
-Migration Subcommand. JSON output is the machine-readable contract used by ACT
-orchestration.
+ACT Dart Migrate emits deterministic text or JSON reports for the selected Migration Subcommand. JSON output is the machine-readable contract used by ACT orchestration.
 
-With `--json`, stdout contains JSON only. Human diagnostics and unexpected
-internal-error details go to stderr.
+With `--json`, stdout contains JSON only. Human diagnostics and unexpected internal-error details go to stderr.
 
 ## Success Envelope
 
-Successful JSON output has `ok: true`, a top-level `migration` field naming the
-selected Migration Subcommand, and schema version `2`:
+Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, and schema version `2`:
 
 ```json
 {
@@ -33,8 +29,7 @@ selected Migration Subcommand, and schema version `2`:
 
 `formatted` is always `false` because formatting is external to the CLI.
 
-`changedFiles` contains relative Dart file paths that would be changed in a dry
-run or were written in a real run.
+`changedFiles` contains relative Dart file paths that would be changed in a dry run or were written in a real run.
 
 Each `migratedDeclarations` entry has:
 
@@ -48,8 +43,7 @@ Each `migratedDeclarations` entry has:
 }
 ```
 
-Each `skippedDeclarations` entry has the same declaration fields plus a stable
-reason code and message:
+Each `skippedDeclarations` entry has the same declaration fields plus a stable reason code and message:
 
 ```json
 {
@@ -63,18 +57,11 @@ reason code and message:
 }
 ```
 
-`skippedFiles` and `skippedDirectories` contain `{ "path", "reason" }` objects.
-File-level skip reasons currently include `generatedFile`; directory-level
-reasons include `nestedPackage`, `nestedRepository`, and `excludedDirectory`.
+`skippedFiles` and `skippedDirectories` contain `{ "path", "reason" }` objects. File-level skip reasons currently include `generatedFile`; directory-level reasons include `nestedPackage`, `nestedRepository`, and `excludedDirectory`.
 
-`transformCounts` counts migrated declarations by transform kind.
-`skipReasonCounts` combines declaration, skipped-file, and skipped-directory
-reason counts. Report arrays and count maps are deterministic.
+`transformCounts` counts migrated declarations by transform kind. `skipReasonCounts` combines declaration, skipped-file, and skipped-directory reason counts. Report arrays and count maps are deterministic.
 
-The opt-in `--skip-super-constructor-initializers` workaround reports skipped
-class declarations with reason code `superConstructorInitializer` when a class
-primary-constructor migration would otherwise retain an explicit `super(...)` or
-`super.named(...)` initializer.
+The opt-in `--skip-super-constructor-initializers` workaround reports skipped class declarations with reason code `superConstructorInitializer` when a class primary-constructor migration would otherwise retain an explicit `super(...)` or `super.named(...)` initializer.
 
 ## Failure Envelope
 
@@ -93,9 +80,7 @@ Failure JSON output has `ok: false` and an `error` object:
 }
 ```
 
-Errors from a recognized Migration Subcommand include that subcommand in the
-top-level `migration` field. This keeps failures attributable even when the run
-does not reach a successful migration report.
+Errors from a recognized Migration Subcommand include that subcommand in the top-level `migration` field. This keeps failures attributable even when the run does not reach a successful migration report.
 
 Root-level errors omit `migration` because no migration was selected:
 
@@ -111,8 +96,7 @@ Root-level errors omit `migration` because no migration was selected:
 }
 ```
 
-Stable error codes are `argumentError`, `invalidRoot`, `parseFailure`,
-`validationFailure`, and `internalError`.
+Stable error codes are `argumentError`, `invalidRoot`, `parseFailure`, `validationFailure`, and `internalError`.
 
 Active exit codes are:
 
@@ -123,5 +107,4 @@ Active exit codes are:
 - `66`: invalid root
 - `70`: internal error
 
-Formatter failure is not a CLI exit category because formatting is not performed
-by the CLI.
+Formatter failure is not a CLI exit category because formatting is not performed by the CLI.

@@ -1,6 +1,6 @@
 name: act_dart_migrate
 description: Bundled ACT tool for Dart migrations.
-version: 0.2.0
+version: 0.3.0
 
 environment:
   sdk: ^3.12.0

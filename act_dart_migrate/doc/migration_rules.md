@@ -17,19 +17,26 @@ The public transform names are:
 - `constructorShorthand`
 - `emptyClassBody`
 
-`primaryConstructor` covers both class primary-constructor migration and
-enhanced-enum primary-constructor migration. For eligible classes and enhanced
-enums, it moves ordinary constructor boilerplate into Dart experimental
-primary-constructor syntax while preserving the declaration shape that matters
-to callers: modifiers, type parameters, bounds, clauses, parameter names,
-nullability, default values, `required`, private declaring parameter names, and
-simple `super` parameters.
+`primaryConstructor` covers class primary-constructor migration, enhanced-enum primary-constructor migration, and extension type representation-parameter validation. For eligible classes and enhanced enums, it moves ordinary constructor boilerplate into Dart experimental primary-constructor syntax while preserving the declaration shape that matters to callers: modifiers, type parameters, bounds, clauses, constructor names, parameter names, nullability, default values, `required`, private declaring parameter names, and simple `super` parameters.
 
-Class primary-constructor migration may also move safe parameter-only field
-initializer assignments to field declarations. Constructor assertions and
-explicit super constructor initializers such as `super(...)` and
-`super.named(...)` may be retained in a primary constructor body when doing so
-preserves their order and meaning.
+The selected primary-constructor target may be unnamed, named, or `.new` when
+there is exactly one non-redirecting generative constructor that can be migrated
+safely. Retained redirecting constructors can remain in the body and be rewritten
+to constructor shorthand.
+
+Supported parameter shapes include mapped field-formal parameters, typed field
+formals whose explicit type matches the field type, function-typed field formals
+whose explicit field declaration type can be copied to a declaring parameter,
+simple pass-through parameters, simple `super` parameters, optional positional
+parameters, named parameters, defaults, and `required`. Fields with implicit
+types are emitted as explicit `dynamic` declaring parameters when otherwise safe.
+Mutable covariant fields can become `covariant var` declaring parameters.
+
+Class and enhanced-enum primary-constructor migration may also move safe
+parameter-only field initializer assignments to field declarations. Constructor
+assertions may be retained in a primary constructor body when doing so preserves
+their order and meaning. Class migrations may also retain explicit super
+constructor initializers such as `super(...)` and `super.named(...)`.
 
 By default, retained explicit super constructor initializers are migrated for
 maximum coverage. The opt-in `--skip-super-constructor-initializers` flag is a
@@ -54,16 +61,28 @@ parameters such as `super.key` do not trigger that flag-specific skip.
 
 Enhanced-enum primary-constructor migration preserves enum value argument shape
 and retained enum members such as methods, getters, factories, and static
-members.
+members. Named enum constructors can become named enum primary constructors when
+the enum has a single safe non-redirecting generative constructor target.
 
-`constructorShorthand` covers eligible generative constructors that stay in a
-class body but can be rewritten to constructor declaration shorthand. Primary
-constructor migration is preferred when it is safe. Factory constructors are not
-rewritten by this transform.
+Extension type declarations already carry their primary constructor in the declaration header. The migration treats valid extension type primary constructors as supported fixed-point input, preserves omitted or explicit `final` representation parameters unchanged, and validates the representation parameter before applying safe extension-type body transforms. Extension types may retain additional body constructors; those constructors are not treated as a `multipleConstructors` primary-constructor skip.
 
-`emptyClassBody` collapses truly empty ordinary class bodies to semicolon form,
-including classes made empty by primary-constructor migration. It does not apply
-to enums, mixins, extension types, or class bodies containing comments.
+`constructorShorthand` covers eligible generative and factory constructors that
+stay in class, enhanced-enum, or extension-type bodies but can be rewritten to
+constructor declaration shorthand. Primary-constructor migration is preferred
+when it is safe. Generative constructors use `new` shorthand, for example
+`C.name()` becomes `new name()`. Factory constructors remove the enclosing type
+name, for example `factory C.name()` becomes `factory name()` and `factory C()`
+becomes `factory()`. `const`, `external`, metadata, documentation comments,
+parameters, initializer lists, bodies, and redirected factory targets are
+preserved.
+
+Constructor shorthand can still run after a primary-constructor skip when the skip is caused by constructor shape or metadata that does not make shorthand unsafe, such as `multipleConstructors`, `externalConstructor`, `namedConstructor`, `constructorMetadata`, `constructorComment`, or `parameterMetadata`. Extension type representation-parameter skips suppress constructor-shorthand and empty-body edits for that extension type declaration in the same run.
+
+`emptyClassBody` collapses truly empty bodies to semicolon form for ordinary
+classes, mixin classes, mixins, extension types, extensions, and empty enums,
+including declarations made empty by primary-constructor migration. It does not
+remove bodies that contain comments, and it does not collapse enums that contain
+enum values or retained members.
 
 Declarations that already use primary-constructor syntax are treated as
 unchanged. They are not failures, and they are not listed as migrated or skipped
@@ -87,10 +106,15 @@ grouped below by the cause users can act on.
 
 Constructor shape:
 
-- `multipleConstructors`: multiple generative constructors make one
-  primary-constructor target ambiguous.
-- `namedConstructor`: named generative constructors are not migrated to primary
-  constructors.
+- `multipleConstructors`: multiple non-redirecting generative constructors make
+  one primary-constructor target ambiguous.
+- `namedConstructor`: a named generative constructor shape is not supported as a
+  primary-constructor target.
+- `mixinClassPrimaryConstructor`: non-trivial mixin class primary constructors
+  are not migrated.
+- `primaryConstructorConflict`: the generated primary constructor name would
+  conflict with a retained body member.
+- `extensionTypeRepresentationParameter`: an extension type primary constructor does not have exactly one supported non-`var` representation parameter.
 - `externalConstructor`: external constructors have no body that can be safely
   rewritten.
 - `redirectingConstructor`: redirecting constructors are not migrated.
@@ -126,7 +150,8 @@ Metadata and comments that would move or disappear:
 - `fieldMetadata`: field metadata is not moved to declaring parameters.
 - `fieldComment`: ambiguous field comments are not moved to declaring
   parameters.
-- `classBodyComment`: class bodies with comments are not collapsed away.
+- `classBodyComment`: empty declaration bodies with comments are not collapsed
+  away.
 
 Field mapping and field declaration shape:
 
@@ -136,7 +161,8 @@ Field mapping and field declaration shape:
 - `externalField`: external fields cannot become declaring parameters.
 - `initializedField`: fields that already have initializers are not converted to
   declaring parameters.
-- `implicitFieldType`: fields without explicit types are not converted to
+- `implicitFieldType`: stable reserved reason code for implicit field-type
+  cases. Current safe implicit fields are emitted as explicit `dynamic`
   declaring parameters.
 - `multipleFieldVariables`: multi-variable field declarations are not converted
   to declaring parameters.

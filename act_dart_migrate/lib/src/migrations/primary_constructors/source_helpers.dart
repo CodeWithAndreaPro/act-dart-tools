@@ -8,7 +8,13 @@ SourceRange _rangeFor(AstNode node) {
   return SourceRange(offset: node.offset, length: node.length);
 }
 
-SourceRange? _blockClassBodyContentRange(ClassBody body) {
+SourceRange? _blockBodyContentRange(AstNode body) {
+  if (body is BlockEnumBody) {
+    return SourceRange.fromStartEnd(
+      start: body.leftBracket.end,
+      end: body.rightBracket.offset,
+    );
+  }
   if (body is! BlockClassBody) {
     return null;
   }

@@ -18,6 +18,7 @@ part 'declaration_planner.dart';
 part 'empty_class_body.dart';
 part 'engine.dart';
 part 'enum_primary_constructor.dart';
+part 'extension_type_primary_constructor.dart';
 part 'field_comments.dart';
 part 'field_to_parameter.dart';
 part 'models.dart';
@@ -39,7 +40,7 @@ const primaryConstructorsCommandMetadata = MigrationCommandMetadata(
     'dart run act_dart_migrate primary-constructors <target-package> --skip-super-constructor-initializers',
   ],
   description:
-      'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax.',
+      'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax, with extension type support for representation validation and safe body transforms.',
 );
 const primaryConstructorTransform = 'primaryConstructor';
 const constructorShorthandTransform = 'constructorShorthand';
@@ -62,7 +63,19 @@ enum DeclarationSkipReason {
   ),
   namedConstructor(
     'namedConstructor',
-    'Named generative constructors are not supported.',
+    'Named generative constructors are not supported in this shape.',
+  ),
+  mixinClassPrimaryConstructor(
+    'mixinClassPrimaryConstructor',
+    'Non-trivial mixin class primary constructors are not supported.',
+  ),
+  primaryConstructorConflict(
+    'primaryConstructorConflict',
+    'The primary constructor name conflicts with a retained body member.',
+  ),
+  extensionTypeRepresentationParameter(
+    'extensionTypeRepresentationParameter',
+    'Extension type primary constructors must have one non-var representation parameter.',
   ),
   externalConstructor(
     'externalConstructor',

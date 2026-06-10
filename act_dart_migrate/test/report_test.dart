@@ -179,7 +179,8 @@ void main() {
           'transform': 'primaryConstructor',
           'offset': 30,
           'reason': 'namedConstructor',
-          'message': 'Named generative constructors are not supported.',
+          'message':
+              'Named generative constructors are not supported in this shape.',
         },
       ]);
     });

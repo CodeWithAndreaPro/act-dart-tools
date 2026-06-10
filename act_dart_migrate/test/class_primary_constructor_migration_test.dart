@@ -183,6 +183,76 @@ class const Palette(final String primary);
 ''');
     });
 
+    test('migrates named constructors to named primary constructors', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+class Point {
+  final int x;
+  final int y;
+
+  const Point._(this.x, this.y);
+
+  const Point.origin() : this._(0, 0);
+}
+''';
+      writeFile(root, 'lib/point.dart', originalSource);
+
+      final result = await runCliPrimaryConstructors(root.path);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['changedFiles'], ['lib/point.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/point.dart',
+          'declarationKind': 'class',
+          'declarationName': 'Point',
+          'transform': 'primaryConstructor',
+          'offset': 0,
+        },
+        {
+          'path': 'lib/point.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'Point.origin',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('const Point.origin'),
+        },
+      ]);
+      expect(await formattedFile(root, 'lib/point.dart'), '''
+class const Point._(final int x, final int y) {
+  const new origin() : this._(0, 0);
+}
+''');
+      await expectAnalyzerClean(root);
+    });
+
+    test('migrates .new constructors to .new primary constructors', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/value.dart', '''
+class Value {
+  final int value;
+
+  Value.new(this.value);
+}
+''');
+
+      final result = await runCliPrimaryConstructors(root.path);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/value.dart',
+        declarationName: 'Value',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/value.dart'), '''
+class Value.new(final int value);
+''');
+      await expectAnalyzerClean(root);
+    });
+
     test('preserves named parameters and required markers', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -206,6 +276,80 @@ class Person {
       expect(await formattedFile(root, 'lib/person.dart'), '''
 class Person({required final String name, final int age = 0});
 ''');
+    });
+
+    test('migrates pass-through-only constructors', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/plain_parameter.dart', '''
+class PlainParameter {
+  PlainParameter(String id, {int count = 0});
+}
+''');
+
+      final result = await runCliPrimaryConstructors(root.path);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/plain_parameter.dart',
+        declarationName: 'PlainParameter',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/plain_parameter.dart'), '''
+class PlainParameter(String id, {int count = 0});
+''');
+    });
+
+    test('migrates typed and function-typed field formals', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/callback_holder.dart', '''
+class CallbackHolder {
+  final String id;
+  final void Function(int value) callback;
+
+  CallbackHolder(String this.id, this.callback(int value));
+}
+''');
+
+      final result = await runCliPrimaryConstructors(root.path);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/callback_holder.dart',
+        declarationName: 'CallbackHolder',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/callback_holder.dart'), '''
+class CallbackHolder(final String id, final void Function(int value) callback);
+''');
+      await expectAnalyzerClean(root);
+    });
+
+    test('migrates implicit dynamic and covariant mutable fields', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      writeFile(root, 'lib/dynamic_box.dart', '''
+class DynamicBox {
+  covariant Object value;
+  var tag;
+
+  DynamicBox(covariant this.value, this.tag);
+}
+''');
+
+      final result = await runCliPrimaryConstructors(root.path);
+
+      expectSinglePrimaryConstructorMigration(
+        result,
+        path: 'lib/dynamic_box.dart',
+        declarationName: 'DynamicBox',
+        reportsEmptyClassBody: true,
+      );
+      expect(await formattedFile(root, 'lib/dynamic_box.dart'), '''
+class DynamicBox(covariant var Object value, var dynamic tag);
+''');
+      await expectAnalyzerClean(root);
     });
 
     test(
@@ -274,7 +418,7 @@ class const Rate({
     test('moves field comments after simple super parameters', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
-      writeFile(root, 'lib/time_range_selector.dart', '''
+      const originalSource = '''
 class TimeRangeSelector extends ConsumerWidget {
   const TimeRangeSelector({super.key, required this.snapshots});
 
@@ -285,7 +429,8 @@ class TimeRangeSelector extends ConsumerWidget {
 class ConsumerWidget {
   const ConsumerWidget({Object? key});
 }
-''');
+''';
+      writeFile(root, 'lib/time_range_selector.dart', originalSource);
 
       final result = await runCliPrimaryConstructors(root.path);
 
@@ -294,6 +439,26 @@ class ConsumerWidget {
         path: 'lib/time_range_selector.dart',
         declarationName: 'TimeRangeSelector',
         reportsEmptyClassBody: true,
+        additionalMigratedDeclarations: [
+          {
+            'path': 'lib/time_range_selector.dart',
+            'declarationKind': 'class',
+            'declarationName': 'ConsumerWidget',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class ConsumerWidget'),
+          },
+          {
+            'path': 'lib/time_range_selector.dart',
+            'declarationKind': 'class',
+            'declarationName': 'ConsumerWidget',
+            'transform': 'emptyClassBody',
+            'offset': originalSource.indexOf('class ConsumerWidget'),
+          },
+        ],
+        additionalTransformCounts: const {
+          'primaryConstructor': 1,
+          'emptyClassBody': 1,
+        },
       );
       expect(await formattedFile(root, 'lib/time_range_selector.dart'), '''
 class const TimeRangeSelector({
@@ -303,9 +468,7 @@ class const TimeRangeSelector({
   required final List<Snapshot> snapshots,
 }) extends ConsumerWidget;
 
-class ConsumerWidget {
-  const ConsumerWidget({Object? key});
-}
+class const ConsumerWidget({Object? key});
 ''');
     });
 
@@ -674,7 +837,7 @@ class Account({required final String _id, required final int score}) {
     test('preserves simple super parameters unchanged', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
-      writeFile(root, 'lib/tile.dart', '''
+      const originalSource = '''
 class Tile extends Widget {
   final String title;
 
@@ -684,7 +847,8 @@ class Tile extends Widget {
 class Widget {
   Widget(Object? key);
 }
-''');
+''';
+      writeFile(root, 'lib/tile.dart', originalSource);
 
       final result = await runCliPrimaryConstructors(root.path);
 
@@ -693,13 +857,31 @@ class Widget {
         path: 'lib/tile.dart',
         declarationName: 'Tile',
         reportsEmptyClassBody: true,
+        additionalMigratedDeclarations: [
+          {
+            'path': 'lib/tile.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Widget',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class Widget'),
+          },
+          {
+            'path': 'lib/tile.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Widget',
+            'transform': 'emptyClassBody',
+            'offset': originalSource.indexOf('class Widget'),
+          },
+        ],
+        additionalTransformCounts: const {
+          'primaryConstructor': 1,
+          'emptyClassBody': 1,
+        },
       );
       expect(await formattedFile(root, 'lib/tile.dart'), '''
 class Tile(super.key, final String title) extends Widget;
 
-class Widget {
-  Widget(Object? key);
-}
+class Widget(Object? key);
 ''');
     });
 
@@ -1045,7 +1227,7 @@ class RedirectingMetadataProbe(final String id) {
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
-        writeFile(root, 'lib/button.dart', '''
+        const originalSource = '''
 class Button extends Widget {
   final String label;
 
@@ -1055,7 +1237,8 @@ class Button extends Widget {
 class Widget {
   Widget(Object label);
 }
-''');
+''';
+        writeFile(root, 'lib/button.dart', originalSource);
 
         final result = await runCliPrimaryConstructors(root.path);
 
@@ -1063,15 +1246,33 @@ class Widget {
           result,
           path: 'lib/button.dart',
           declarationName: 'Button',
+          additionalMigratedDeclarations: [
+            {
+              'path': 'lib/button.dart',
+              'declarationKind': 'class',
+              'declarationName': 'Widget',
+              'transform': 'primaryConstructor',
+              'offset': originalSource.indexOf('class Widget'),
+            },
+            {
+              'path': 'lib/button.dart',
+              'declarationKind': 'class',
+              'declarationName': 'Widget',
+              'transform': 'emptyClassBody',
+              'offset': originalSource.indexOf('class Widget'),
+            },
+          ],
+          additionalTransformCounts: const {
+            'primaryConstructor': 1,
+            'emptyClassBody': 1,
+          },
         );
         expect(await formattedFile(root, 'lib/button.dart'), '''
 class Button(final String label) extends Widget {
   this : super(label);
 }
 
-class Widget {
-  Widget(Object label);
-}
+class Widget(Object label);
 ''');
       },
     );
@@ -1135,7 +1336,7 @@ class OrderedNamedSuper(final int value) extends Base {
     test('preserves retained initializer relative order', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
-      writeFile(root, 'lib/ordered.dart', '''
+      const originalSource = '''
 class Ordered extends Base {
   final int value;
   final int doubled;
@@ -1150,7 +1351,8 @@ class Ordered extends Base {
 class Base {
   Base(Object value);
 }
-''');
+''';
+      writeFile(root, 'lib/ordered.dart', originalSource);
 
       final result = await runCliPrimaryConstructors(root.path);
 
@@ -1158,6 +1360,26 @@ class Base {
         result,
         path: 'lib/ordered.dart',
         declarationName: 'Ordered',
+        additionalMigratedDeclarations: [
+          {
+            'path': 'lib/ordered.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Base',
+            'transform': 'primaryConstructor',
+            'offset': originalSource.indexOf('class Base'),
+          },
+          {
+            'path': 'lib/ordered.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Base',
+            'transform': 'emptyClassBody',
+            'offset': originalSource.indexOf('class Base'),
+          },
+        ],
+        additionalTransformCounts: const {
+          'primaryConstructor': 1,
+          'emptyClassBody': 1,
+        },
       );
       expect(await formattedFile(root, 'lib/ordered.dart'), '''
 class Ordered(final int value) extends Base {
@@ -1166,9 +1388,7 @@ class Ordered(final int value) extends Base {
   this : assert(value > 0), super(value), assert(value.isFinite);
 }
 
-class Base {
-  Base(Object value);
-}
+class Base(Object value);
 ''');
     });
 
@@ -1276,7 +1496,7 @@ class FrankfurterClient({required final Dio _dio}) implements ApiClient {
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
-        writeFile(root, 'lib/retrying_client.dart', '''
+        const originalSource = '''
 class RetryingGoldApiClient extends GoldApiClient {
   final int retries;
 
@@ -1290,7 +1510,8 @@ class RetryingGoldApiClient extends GoldApiClient {
 class GoldApiClient {
   GoldApiClient({required Object dio});
 }
-''');
+''';
+        writeFile(root, 'lib/retrying_client.dart', originalSource);
 
         final result = await runCliPrimaryConstructors(root.path);
 
@@ -1298,6 +1519,26 @@ class GoldApiClient {
           result,
           path: 'lib/retrying_client.dart',
           declarationName: 'RetryingGoldApiClient',
+          additionalMigratedDeclarations: [
+            {
+              'path': 'lib/retrying_client.dart',
+              'declarationKind': 'class',
+              'declarationName': 'GoldApiClient',
+              'transform': 'primaryConstructor',
+              'offset': originalSource.indexOf('class GoldApiClient'),
+            },
+            {
+              'path': 'lib/retrying_client.dart',
+              'declarationKind': 'class',
+              'declarationName': 'GoldApiClient',
+              'transform': 'emptyClassBody',
+              'offset': originalSource.indexOf('class GoldApiClient'),
+            },
+          ],
+          additionalTransformCounts: const {
+            'primaryConstructor': 1,
+            'emptyClassBody': 1,
+          },
         );
         expect(await formattedFile(root, 'lib/retrying_client.dart'), '''
 class RetryingGoldApiClient(final int retries) extends GoldApiClient {
@@ -1306,9 +1547,7 @@ class RetryingGoldApiClient(final int retries) extends GoldApiClient {
   }
 }
 
-class GoldApiClient {
-  GoldApiClient({required Object dio});
-}
+class GoldApiClient({required Object dio});
 ''');
       },
     );
@@ -1318,7 +1557,7 @@ class GoldApiClient {
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
-        writeFile(root, 'lib/counting_client.dart', '''
+        const originalSource = '''
 class _CountingFrankfurterClient extends FrankfurterClient {
   _CountingFrankfurterClient() : super(dio: Dio());
 
@@ -1328,7 +1567,8 @@ class _CountingFrankfurterClient extends FrankfurterClient {
 class FrankfurterClient {
   FrankfurterClient({required Object dio});
 }
-''');
+''';
+        writeFile(root, 'lib/counting_client.dart', originalSource);
 
         final result = await runCliPrimaryConstructors(root.path);
 
@@ -1336,6 +1576,26 @@ class FrankfurterClient {
           result,
           path: 'lib/counting_client.dart',
           declarationName: '_CountingFrankfurterClient',
+          additionalMigratedDeclarations: [
+            {
+              'path': 'lib/counting_client.dart',
+              'declarationKind': 'class',
+              'declarationName': 'FrankfurterClient',
+              'transform': 'primaryConstructor',
+              'offset': originalSource.indexOf('class FrankfurterClient'),
+            },
+            {
+              'path': 'lib/counting_client.dart',
+              'declarationKind': 'class',
+              'declarationName': 'FrankfurterClient',
+              'transform': 'emptyClassBody',
+              'offset': originalSource.indexOf('class FrankfurterClient'),
+            },
+          ],
+          additionalTransformCounts: const {
+            'primaryConstructor': 1,
+            'emptyClassBody': 1,
+          },
         );
         expect(await formattedFile(root, 'lib/counting_client.dart'), '''
 class _CountingFrankfurterClient() extends FrankfurterClient {
@@ -1344,9 +1604,7 @@ class _CountingFrankfurterClient() extends FrankfurterClient {
   int latestCalls = 0;
 }
 
-class FrankfurterClient {
-  FrankfurterClient({required Object dio});
-}
+class FrankfurterClient({required Object dio});
 ''');
       },
     );

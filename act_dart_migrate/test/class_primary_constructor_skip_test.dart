@@ -333,7 +333,7 @@ class PrivateFieldComment {
       );
     });
 
-    test('rewrites named-only constructors without a primary skip', () async {
+    test('migrates named-only constructors without a primary skip', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
       const originalSource = '''
@@ -361,10 +361,10 @@ class AddInvestmentChoice {
       expect(decoded['migratedDeclarations'], [
         {
           'path': 'lib/add_investment_choice.dart',
-          'declarationKind': 'constructor',
-          'declarationName': 'AddInvestmentChoice._',
-          'transform': 'constructorShorthand',
-          'offset': originalSource.indexOf('const AddInvestmentChoice._'),
+          'declarationKind': 'class',
+          'declarationName': 'AddInvestmentChoice',
+          'transform': 'primaryConstructor',
+          'offset': 0,
         },
         {
           'path': 'lib/add_investment_choice.dart',
@@ -384,17 +384,16 @@ class AddInvestmentChoice {
         },
       ]);
       expect(decoded['skippedDeclarations'], isEmpty);
-      expect(decoded['transformCounts'], {'constructorShorthand': 3});
+      expect(decoded['transformCounts'], {
+        'primaryConstructor': 1,
+        'constructorShorthand': 2,
+      });
       expect(decoded['skipReasonCounts'], isEmpty);
       expect(await formattedFile(root, 'lib/add_investment_choice.dart'), '''
-class AddInvestmentChoice {
-  const new _({this.apiSymbol});
-
+class const AddInvestmentChoice._({final SupportedApiSymbol? apiSymbol}) {
   const new custom() : this._();
 
   const new apiBacked(SupportedApiSymbol symbol) : this._(apiSymbol: symbol);
-
-  final SupportedApiSymbol? apiSymbol;
 
   bool get isApiBacked => apiSymbol != null;
   bool get isCustom => apiSymbol == null;
@@ -441,6 +440,15 @@ class ShorthandSafety {
         {
           'path': 'lib/shorthand_safety.dart',
           'declarationKind': 'constructor',
+          'declarationName': 'ShorthandSafety.factoryConstructor',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf(
+            'factory ShorthandSafety.factoryConstructor',
+          ),
+        },
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'constructor',
           'declarationName': 'ShorthandSafety.externalConstructor',
           'transform': 'constructorShorthand',
           'offset': originalSource.indexOf(
@@ -469,14 +477,24 @@ class ShorthandSafety {
           'offset': originalSource.indexOf('ShorthandSafety.parameterMetadata'),
         },
       ]);
-      expect(decoded['skippedDeclarations'], isEmpty);
-      expect(decoded['transformCounts'], {'constructorShorthand': 5});
-      expect(decoded['skipReasonCounts'], isEmpty);
+      expect(decoded['skippedDeclarations'], [
+        {
+          'path': 'lib/shorthand_safety.dart',
+          'declarationKind': 'class',
+          'declarationName': 'ShorthandSafety',
+          'transform': 'primaryConstructor',
+          'offset': 0,
+          'reason': 'multipleConstructors',
+          'message': 'Multiple generative constructors are not supported.',
+        },
+      ]);
+      expect(decoded['transformCounts'], {'constructorShorthand': 6});
+      expect(decoded['skipReasonCounts'], {'multipleConstructors': 1});
       expect(await formattedFile(root, 'lib/shorthand_safety.dart'), '''
 class ShorthandSafety {
   new eligible();
 
-  factory ShorthandSafety.factoryConstructor() => ShorthandSafety.eligible();
+  factory factoryConstructor() => ShorthandSafety.eligible();
 
   external new externalConstructor();
 
@@ -492,7 +510,7 @@ class ShorthandSafety {
     });
 
     test(
-      'keeps factory constructors and rewrites documented external shorthand',
+      'rewrites factory constructors and documented external shorthand',
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
@@ -537,9 +555,30 @@ class ConstructorShorthandRegression {
             'transform': 'constructorShorthand',
             'offset': originalSource.indexOf('/// External hook.'),
           },
+          {
+            'path': 'lib/constructor_shorthand_regression.dart',
+            'declarationKind': 'constructor',
+            'declarationName':
+                'ConstructorShorthandRegression.factoryConstructor',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf(
+              'factory ConstructorShorthandRegression.factoryConstructor',
+            ),
+          },
         ]);
-        expect(decoded['skippedDeclarations'], isEmpty);
-        expect(decoded['transformCounts'], {'constructorShorthand': 2});
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/constructor_shorthand_regression.dart',
+            'declarationKind': 'class',
+            'declarationName': 'ConstructorShorthandRegression',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+            'reason': 'multipleConstructors',
+            'message': 'Multiple generative constructors are not supported.',
+          },
+        ]);
+        expect(decoded['transformCounts'], {'constructorShorthand': 3});
+        expect(decoded['skipReasonCounts'], {'multipleConstructors': 1});
         expect(
           await formattedFile(
             root,
@@ -552,8 +591,7 @@ class ConstructorShorthandRegression {
   /// External hook.
   external new hook();
 
-  factory ConstructorShorthandRegression.factoryConstructor() =>
-      ConstructorShorthandRegression.named();
+  factory factoryConstructor() => ConstructorShorthandRegression.named();
 }
 ''',
         );
@@ -672,7 +710,7 @@ class ConstructorDocumentationComment {
     }
 
     test(
-      'rewrites constructors in a class skipped for an additional named constructor',
+      'rewrites constructors in a class skipped for multiple constructors',
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
@@ -714,12 +752,12 @@ class AppDatabase extends _\$AppDatabase {
             'declarationName': 'AppDatabase',
             'transform': 'primaryConstructor',
             'offset': 0,
-            'reason': 'namedConstructor',
-            'message': 'Named generative constructors are not supported.',
+            'reason': 'multipleConstructors',
+            'message': 'Multiple generative constructors are not supported.',
           },
         ]);
         expect(decoded['transformCounts'], {'constructorShorthand': 2});
-        expect(decoded['skipReasonCounts'], {'namedConstructor': 1});
+        expect(decoded['skipReasonCounts'], {'multipleConstructors': 1});
         expect(await formattedFile(root, 'lib/app_database.dart'), '''
 class AppDatabase extends _\$AppDatabase {
   new() : super(impl.connect());
@@ -731,19 +769,6 @@ class AppDatabase extends _\$AppDatabase {
     );
 
     for (final scenario in [
-      (
-        name: 'redirecting constructor',
-        declarationName: 'RedirectingConstructor',
-        reason: 'redirectingConstructor',
-        message: 'Redirecting constructors are not supported.',
-        source: '''
-class RedirectingConstructor {
-  RedirectingConstructor() : this.named();
-
-  RedirectingConstructor.named();
-}
-''',
-      ),
       (
         name: 'unsupported constructor body',
         declarationName: 'UnsupportedBodyConstructor',
@@ -863,20 +888,6 @@ class InitializedMappedField {
 ''',
       ),
       (
-        name: 'implicit-type mapped field',
-        declarationName: 'ImplicitMappedField',
-        reason: 'implicitFieldType',
-        message:
-            'Fields with implicit types cannot become declaring parameters.',
-        source: '''
-class ImplicitMappedField {
-  var id;
-
-  ImplicitMappedField(this.id);
-}
-''',
-      ),
-      (
         name: 'multi-variable mapped field',
         declarationName: 'MultiVariableMappedField',
         reason: 'multipleFieldVariables',
@@ -935,6 +946,47 @@ class UnsupportedParameter {
       );
     });
 
+    test('skips non-trivial mixin class primary constructors', () async {
+      const originalSource = '''
+mixin class NonTrivialMixinClass {
+  final int value;
+
+  NonTrivialMixinClass(this.value);
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/mixin_class.dart',
+        originalSource: originalSource,
+        declarationKind: 'mixinClass',
+        declarationName: 'NonTrivialMixinClass',
+        reason: 'mixinClassPrimaryConstructor',
+        message:
+            'Non-trivial mixin class primary constructors are not supported.',
+      );
+    });
+
+    test('skips named primary constructor static member conflicts', () async {
+      const originalSource = '''
+class Conflict {
+  final int value;
+
+  Conflict.named(this.value);
+
+  static void named() {}
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/conflict.dart',
+        originalSource: originalSource,
+        declarationName: 'Conflict',
+        reason: 'primaryConstructorConflict',
+        message:
+            'The primary constructor name conflicts with a retained body member.',
+      );
+    });
+
     test('skips unsupported initializer cases precisely', () async {
       const originalSource = '''
 class UnsupportedInitializer {
@@ -986,6 +1038,26 @@ class UnsafeInitializerDependency {
         relativePath: 'lib/initializer_dependency.dart',
         originalSource: originalSource,
         declarationName: 'UnsafeInitializerDependency',
+        reason: 'unsafeInitializerDependency',
+        message:
+            'Initializer field assignments must depend only on constructor parameters.',
+      );
+    });
+
+    test('skips initializer writes to primary parameters', () async {
+      const originalSource = '''
+class ParameterWriteInitializer {
+  final int base;
+  final int total;
+
+  ParameterWriteInitializer(this.base) : total = ++base;
+}
+''';
+
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/parameter_write_initializer.dart',
+        originalSource: originalSource,
+        declarationName: 'ParameterWriteInitializer',
         reason: 'unsafeInitializerDependency',
         message:
             'Initializer field assignments must depend only on constructor parameters.',

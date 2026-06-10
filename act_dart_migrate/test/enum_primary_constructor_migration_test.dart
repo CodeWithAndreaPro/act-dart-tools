@@ -125,6 +125,40 @@ enum ButtonSize({required final String label}) {
 ''');
     });
 
+    test(
+      'migrates named enum constructors to named primary constructors',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        writeFile(root, 'lib/wire_status.dart', '''
+enum WireStatus {
+  ok.code(200),
+  notFound.code(404);
+
+  final int code;
+
+  const WireStatus.code(this.code);
+}
+''');
+
+        final result = await runCliPrimaryConstructors(root.path);
+
+        expectSinglePrimaryConstructorMigration(
+          result,
+          path: 'lib/wire_status.dart',
+          declarationKind: 'enum',
+          declarationName: 'WireStatus',
+        );
+        expect(await formattedFile(root, 'lib/wire_status.dart'), '''
+enum WireStatus.code(final int code) {
+  ok.code(200),
+  notFound.code(404);
+}
+''');
+        await expectAnalyzerClean(root);
+      },
+    );
+
     test('migrates mixed positional and named parameter groups', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
@@ -166,7 +200,7 @@ enum TokenKind(
       () async {
         final root = await createPackageRoot();
         addTearDown(() => root.deleteSync(recursive: true));
-        writeFile(root, 'lib/permission.dart', '''
+        const originalSource = '''
 enum Permission {
   read('r');
 
@@ -182,16 +216,30 @@ enum Permission {
 
   static const defaultValue = read;
 }
-''');
+''';
+        writeFile(root, 'lib/permission.dart', originalSource);
 
         final result = await runCliPrimaryConstructors(root.path);
 
-        expectSinglePrimaryConstructorMigration(
-          result,
-          path: 'lib/permission.dart',
-          declarationKind: 'enum',
-          declarationName: 'Permission',
-        );
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/permission.dart',
+            'declarationKind': 'enum',
+            'declarationName': 'Permission',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+          },
+          {
+            'path': 'lib/permission.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Permission.fromCode',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('factory Permission.fromCode'),
+          },
+        ]);
         expect(await formattedFile(root, 'lib/permission.dart'), '''
 enum Permission(final String code) {
   read('r');
@@ -200,7 +248,7 @@ enum Permission(final String code) {
 
   bool matches(String value) => value == code;
 
-  factory Permission.fromCode(String code) => read;
+  factory fromCode(String code) => read;
 
   static const defaultValue = read;
 }
@@ -243,10 +291,8 @@ enum Score(final int base) {
 ''');
     });
 
-    test('moves safe non-empty constructor bodies', () async {
-      final root = await createPackageRoot();
-      addTearDown(() => root.deleteSync(recursive: true));
-      writeFile(root, 'lib/guarded.dart', '''
+    test('skips non-empty enum constructor bodies', () async {
+      const originalSource = '''
 enum Guarded {
   value('id');
 
@@ -259,28 +305,16 @@ enum Guarded {
     print(id);
   }
 }
-''');
+''';
 
-      final result = await runCliPrimaryConstructors(root.path);
-
-      expectSinglePrimaryConstructorMigration(
-        result,
-        path: 'lib/guarded.dart',
+      await expectSinglePrimaryConstructorSkip(
+        relativePath: 'lib/guarded.dart',
+        originalSource: originalSource,
         declarationKind: 'enum',
         declarationName: 'Guarded',
+        reason: 'unsupportedConstructorBody',
+        message: 'This constructor body shape is not supported.',
       );
-      expect(await formattedFile(root, 'lib/guarded.dart'), '''
-enum Guarded(final String id) {
-  value('id');
-
-  this {
-    if (id.isEmpty) {
-      throw ArgumentError.value(id, 'id');
-    }
-    print(id);
-  }
-}
-''');
     });
   });
 

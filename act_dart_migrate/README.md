@@ -2,11 +2,7 @@
 
 Bundled ACT tooling for deterministic Dart migrations.
 
-This package provides one Dart executable, `act_dart_migrate`, with Migration
-Subcommands. The first Migration Subcommand is `primary-constructors`, which
-migrates eligible Dart classes and enhanced enums from ordinary constructor
-boilerplate to Dart experimental
-[primary-constructor](https://dart.dev/language/primary-constructors) syntax.
+This package provides one Dart executable, `act_dart_migrate`, with Migration Subcommands. The first Migration Subcommand is `primary-constructors`, which migrates eligible Dart classes and enhanced enums from ordinary constructor boilerplate to Dart experimental [primary-constructor](https://dart.dev/language/primary-constructors) syntax and validates extension type representation parameters before safe body transforms.
 
 The migration is intentionally conservative: when a declaration cannot be
 migrated safely, the CLI leaves the source unchanged and reports a precise skip
@@ -144,10 +140,7 @@ See [Architecture Overview](doc/architecture.md) for the CLI pipeline,
 responsibility boundaries, shared internal core responsibilities, and
 migration-specific module responsibilities.
 
-At a high level, the CLI supports conservative primary-constructor migration for
-eligible classes and enhanced enums, constructor declaration shorthand for
-eligible constructors that remain in class bodies, and empty class-body collapse.
-The CLI skips rather than guesses when a migration could change semantics.
+At a high level, the CLI supports conservative primary-constructor migration for eligible classes and enhanced enums, extension type representation-parameter validation, constructor declaration shorthand for eligible constructors that remain in supported declaration bodies, and empty class-body collapse. The CLI skips rather than guesses when a migration could change semantics.
 
 ## Formatting And Verification
 

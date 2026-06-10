@@ -4,35 +4,35 @@ class _ClassMigrationPlan {
   const _ClassMigrationPlan({
     required this.edits,
     required this.migratedDeclaration,
-    this.emptyClassBodyRewrite,
-    this.emptyClassBodySkipReason,
+    this.emptyBodyRewrite,
+    this.emptyBodySkipReason,
   });
 
   final List<SourceEdit> edits;
-  final _EmptyClassBodyRewriteIntent? emptyClassBodyRewrite;
-  final DeclarationSkipReason? emptyClassBodySkipReason;
+  final _EmptyBodyRewriteIntent? emptyBodyRewrite;
+  final DeclarationSkipReason? emptyBodySkipReason;
   final MigratedDeclarationReport migratedDeclaration;
 
   List<SourceEdit> get sourceEdits => [
     ...edits,
-    if (emptyClassBodyRewrite case final rewrite?) rewrite.toEdit(),
+    if (emptyBodyRewrite case final rewrite?) rewrite.toEdit(),
   ];
 }
 
 class _ClassBodyRewritePlan {
   const _ClassBodyRewritePlan({
     required this.edits,
-    this.emptyClassBodyRewrite,
-    this.emptyClassBodySkipReason,
+    this.emptyBodyRewrite,
+    this.emptyBodySkipReason,
   });
 
   final List<SourceEdit> edits;
-  final _EmptyClassBodyRewriteIntent? emptyClassBodyRewrite;
-  final DeclarationSkipReason? emptyClassBodySkipReason;
+  final _EmptyBodyRewriteIntent? emptyBodyRewrite;
+  final DeclarationSkipReason? emptyBodySkipReason;
 
   List<SourceEdit> get sourceEdits => [
     ...edits,
-    if (emptyClassBodyRewrite case final rewrite?) rewrite.toEdit(),
+    if (emptyBodyRewrite case final rewrite?) rewrite.toEdit(),
   ];
 }
 
@@ -55,12 +55,12 @@ class _DeclarationBodyInfo {
   final int bodyEnd;
 }
 
-class _EmptyClassBodyRewriteIntent {
-  const _EmptyClassBodyRewriteIntent({required this.declaration});
+class _EmptyBodyRewriteIntent {
+  const _EmptyBodyRewriteIntent({required this.body});
 
-  final ClassDeclaration declaration;
+  final AstNode body;
 
-  SourceEdit toEdit() => SourceEdit.replace(_rangeFor(declaration.body), ';');
+  SourceEdit toEdit() => SourceEdit.replace(_rangeFor(body), ';');
 }
 
 class _ParameterMigrationPlan {
@@ -171,4 +171,10 @@ class _DeclarationMigrationPlan {
   final List<SourceEdit> edits;
   final List<MigratedDeclarationReport> migratedDeclarations;
   final List<SkippedDeclarationReport> skippedDeclarations;
+}
+
+class _PrimaryConstructorTarget {
+  const _PrimaryConstructorTarget({required this.constructor});
+
+  final ConstructorDeclaration constructor;
 }

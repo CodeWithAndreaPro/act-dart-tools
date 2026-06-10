@@ -163,7 +163,7 @@ class Commented {
       expect(readFile(root, 'lib/commented.dart'), originalSource);
     });
 
-    test('does not collapse enums mixins or extension types', () async {
+    test('collapses empty bodies across supported declaration kinds', () async {
       final root = await createPackageRoot();
       addTearDown(() => root.deleteSync(recursive: true));
       const originalSource = '''
@@ -171,19 +171,105 @@ enum Choice { one }
 
 mixin EmptyMixin {}
 
+mixin class EmptyMixinClass {}
+
 extension type Identifier(String value) {}
+
+extension NumberParsing on String {}
+
+enum EmptyEnum {}
 ''';
-      writeFile(root, 'lib/unsupported.dart', originalSource);
+      writeFile(root, 'lib/supported_empty_bodies.dart', originalSource);
 
       final result = await runCliPrimaryConstructors(root.path);
 
       expect(result.exitCode, exitSuccess);
       expect(result.stderr, isEmpty);
       final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
-      expect(decoded['changedFiles'], isEmpty);
-      expect(decoded['migratedDeclarations'], isEmpty);
-      expect(decoded['skippedDeclarations'], isEmpty);
-      expect(readFile(root, 'lib/unsupported.dart'), originalSource);
+      expect(decoded['changedFiles'], ['lib/supported_empty_bodies.dart']);
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/supported_empty_bodies.dart',
+          'declarationKind': 'mixin',
+          'declarationName': 'EmptyMixin',
+          'transform': 'emptyClassBody',
+          'offset': originalSource.indexOf('mixin EmptyMixin'),
+        },
+        {
+          'path': 'lib/supported_empty_bodies.dart',
+          'declarationKind': 'mixinClass',
+          'declarationName': 'EmptyMixinClass',
+          'transform': 'emptyClassBody',
+          'offset': originalSource.indexOf('mixin class EmptyMixinClass'),
+        },
+        {
+          'path': 'lib/supported_empty_bodies.dart',
+          'declarationKind': 'extensionType',
+          'declarationName': 'Identifier',
+          'transform': 'emptyClassBody',
+          'offset': originalSource.indexOf('extension type Identifier'),
+        },
+        {
+          'path': 'lib/supported_empty_bodies.dart',
+          'declarationKind': 'extension',
+          'declarationName': 'NumberParsing',
+          'transform': 'emptyClassBody',
+          'offset': originalSource.indexOf('extension NumberParsing'),
+        },
+        {
+          'path': 'lib/supported_empty_bodies.dart',
+          'declarationKind': 'enum',
+          'declarationName': 'EmptyEnum',
+          'transform': 'emptyClassBody',
+          'offset': originalSource.indexOf('enum EmptyEnum'),
+        },
+      ]);
+      expect(decoded['transformCounts'], {'emptyClassBody': 5});
+      expect(await formattedFile(root, 'lib/supported_empty_bodies.dart'), '''
+enum Choice { one }
+
+mixin EmptyMixin;
+
+mixin class EmptyMixinClass;
+
+extension type Identifier(String value);
+
+extension NumberParsing on String;
+
+enum EmptyEnum;
+''');
+    });
+
+    test('rewrites extension type body constructors to shorthand', () async {
+      final root = await createPackageRoot();
+      addTearDown(() => root.deleteSync(recursive: true));
+      const originalSource = '''
+extension type Identifier(String value) {
+  Identifier.named(String value) : this(value);
+}
+''';
+      writeFile(root, 'lib/identifier.dart', originalSource);
+
+      final result = await runCliPrimaryConstructors(root.path);
+
+      expect(result.exitCode, exitSuccess);
+      expect(result.stderr, isEmpty);
+      final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+      expect(decoded['migratedDeclarations'], [
+        {
+          'path': 'lib/identifier.dart',
+          'declarationKind': 'constructor',
+          'declarationName': 'Identifier.named',
+          'transform': 'constructorShorthand',
+          'offset': originalSource.indexOf('Identifier.named'),
+        },
+      ]);
+      expect(await formattedFile(root, 'lib/identifier.dart'), '''
+extension type Identifier(String value) {
+  new named(String value) : this(value);
+}
+''');
+      await expectAnalyzerClean(root);
     });
   });
 }

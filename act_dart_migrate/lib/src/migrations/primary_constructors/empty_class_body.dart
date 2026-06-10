@@ -1,30 +1,23 @@
 part of 'primary_constructors.dart';
 
-final class _EmptyClassBodyPlanner {
-  const _EmptyClassBodyPlanner({
-    required this.source,
-    required this.declaration,
-  });
+final class _EmptyBodyPlanner {
+  const _EmptyBodyPlanner({required this.source, required this.body});
 
   final String source;
-  final ClassDeclaration declaration;
+  final AstNode body;
 
   _EmptyClassBodyDecision decide() {
-    if (!_isOrdinaryClassDeclaration(declaration) ||
-        declaration.namePart is PrimaryConstructorDeclaration ||
-        declaration.body.members.isNotEmpty) {
+    if (!_hasEmptyBodyMembers(body)) {
       return const _NoOpEmptyClassBody();
     }
 
-    final bodyRange = _blockClassBodyContentRange(declaration.body);
+    final bodyRange = _blockBodyContentRange(body);
     if (bodyRange == null) {
       return const _NoOpEmptyClassBody();
     }
 
     if (_bodyContainsOnlyWhitespace(bodyRange)) {
-      return _MigratedEmptyClassBody(
-        _EmptyClassBodyRewriteIntent(declaration: declaration),
-      );
+      return _MigratedEmptyClassBody(_EmptyBodyRewriteIntent(body: body));
     }
 
     return const _SkippedEmptyClassBody(DeclarationSkipReason.classBodyComment);
@@ -32,6 +25,15 @@ final class _EmptyClassBodyPlanner {
 
   bool _bodyContainsOnlyWhitespace(SourceRange bodyRange) {
     return source.substring(bodyRange.offset, bodyRange.end).trim().isEmpty;
+  }
+
+  bool _hasEmptyBodyMembers(AstNode body) {
+    return switch (body) {
+      ClassBody(:final members) => members.isEmpty,
+      EnumBody(:final constants, :final members) =>
+        constants.isEmpty && members.isEmpty,
+      _ => false,
+    };
   }
 }
 
@@ -42,7 +44,7 @@ sealed class _EmptyClassBodyDecision {
 final class _MigratedEmptyClassBody extends _EmptyClassBodyDecision {
   const _MigratedEmptyClassBody(this.rewrite);
 
-  final _EmptyClassBodyRewriteIntent rewrite;
+  final _EmptyBodyRewriteIntent rewrite;
 }
 
 final class _SkippedEmptyClassBody extends _EmptyClassBodyDecision {
@@ -53,8 +55,4 @@ final class _SkippedEmptyClassBody extends _EmptyClassBodyDecision {
 
 final class _NoOpEmptyClassBody extends _EmptyClassBodyDecision {
   const _NoOpEmptyClassBody();
-}
-
-bool _isOrdinaryClassDeclaration(ClassDeclaration declaration) {
-  return declaration.mixinKeyword == null;
 }

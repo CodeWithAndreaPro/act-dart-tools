@@ -132,19 +132,99 @@ class ShorthandOnly {
         inputFiles: const {'lib/shorthand.dart': originalSource},
         expectedRawSources: const {
           'lib/shorthand.dart': '''
-class ShorthandOnly {
-  new named();
-}
+class ShorthandOnly.named() ;
 ''',
         },
         expectedFirstChangedFiles: const ['lib/shorthand.dart'],
-        expectedFirstMigratedDeclarations: [
+        expectedFirstMigratedDeclarations: const [
           {
             'path': 'lib/shorthand.dart',
+            'declarationKind': 'class',
+            'declarationName': 'ShorthandOnly',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+          },
+          {
+            'path': 'lib/shorthand.dart',
+            'declarationKind': 'class',
+            'declarationName': 'ShorthandOnly',
+            'transform': 'emptyClassBody',
+            'offset': 0,
+          },
+        ],
+        expectedFirstTransformCounts: const {
+          'primaryConstructor': 1,
+          'emptyClassBody': 1,
+        },
+      );
+    });
+
+    test('named primary-constructor migration is idempotent', () async {
+      const originalSource = '''
+class NamedPrimary {
+  final int value;
+
+  NamedPrimary.named(this.value);
+}
+''';
+
+      await expectIdempotentMigration(
+        inputFiles: const {'lib/named_primary.dart': originalSource},
+        expectedRawSources: const {
+          'lib/named_primary.dart': '''
+class NamedPrimary.named(final int value) ;
+''',
+        },
+        expectedFirstChangedFiles: const ['lib/named_primary.dart'],
+        expectedFirstMigratedDeclarations: const [
+          {
+            'path': 'lib/named_primary.dart',
+            'declarationKind': 'class',
+            'declarationName': 'NamedPrimary',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+          },
+          {
+            'path': 'lib/named_primary.dart',
+            'declarationKind': 'class',
+            'declarationName': 'NamedPrimary',
+            'transform': 'emptyClassBody',
+            'offset': 0,
+          },
+        ],
+        expectedFirstTransformCounts: const {
+          'primaryConstructor': 1,
+          'emptyClassBody': 1,
+        },
+      );
+    });
+
+    test('factory constructor shorthand output is idempotent', () async {
+      const originalSource = '''
+class FactoryShorthandOnly {
+  factory FactoryShorthandOnly.named() => throw UnimplementedError();
+}
+''';
+
+      await expectIdempotentMigration(
+        inputFiles: const {'lib/factory_shorthand.dart': originalSource},
+        expectedRawSources: const {
+          'lib/factory_shorthand.dart': '''
+class FactoryShorthandOnly {
+  factory named() => throw UnimplementedError();
+}
+''',
+        },
+        expectedFirstChangedFiles: const ['lib/factory_shorthand.dart'],
+        expectedFirstMigratedDeclarations: [
+          {
+            'path': 'lib/factory_shorthand.dart',
             'declarationKind': 'constructor',
-            'declarationName': 'ShorthandOnly.named',
+            'declarationName': 'FactoryShorthandOnly.named',
             'transform': 'constructorShorthand',
-            'offset': originalSource.indexOf('ShorthandOnly.named'),
+            'offset': originalSource.indexOf(
+              'factory FactoryShorthandOnly.named',
+            ),
           },
         ],
         expectedFirstTransformCounts: const {'constructorShorthand': 1},

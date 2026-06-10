@@ -32,19 +32,31 @@ class _ClassPrimaryConstructorPlanner {
       return const _NoOpClassPrimaryConstructor();
     }
 
-    final unnamedConstructors = generativeConstructors
-        .where(_isUnnamedConstructor)
-        .toList();
-    if (unnamedConstructors.isEmpty) {
-      return const _NoOpClassPrimaryConstructor();
+    final primaryTargetDecision = _decidePrimaryConstructorTarget(
+      generativeConstructors,
+    );
+    final _PrimaryConstructorTarget primaryTarget;
+    switch (primaryTargetDecision) {
+      case _PlannedPrimaryConstructorTarget(:final target):
+        primaryTarget = target;
+      case _SkippedPrimaryConstructorTarget(:final reason):
+        return _SkippedClassPrimaryConstructor(reason);
+      case _NoPrimaryConstructorTarget():
+        return const _NoOpClassPrimaryConstructor();
     }
-    if (unnamedConstructors.length > 1) {
+
+    final constructor = primaryTarget.constructor;
+    if (declaration.mixinKeyword != null && !_isTrivialMixinClassTarget()) {
       return const _SkippedClassPrimaryConstructor(
-        DeclarationSkipReason.multipleConstructors,
+        DeclarationSkipReason.mixinClassPrimaryConstructor,
+      );
+    }
+    if (_hasNamedPrimaryConstructorConflict(constructor)) {
+      return const _SkippedClassPrimaryConstructor(
+        DeclarationSkipReason.primaryConstructorConflict,
       );
     }
 
-    final constructor = unnamedConstructors.single;
     if (constructor.externalKeyword != null) {
       return const _SkippedClassPrimaryConstructor(
         DeclarationSkipReason.externalConstructor,
@@ -78,18 +90,8 @@ class _ClassPrimaryConstructorPlanner {
         return _SkippedClassPrimaryConstructor(reason);
     }
 
-    if (generativeConstructors.any(
-      (constructor) =>
-          constructor.externalKeyword == null &&
-          constructor != unnamedConstructors.single &&
-          !_isUnnamedConstructor(constructor) &&
-          !_isRedirectingConstructor(constructor),
-    )) {
-      return const _SkippedClassPrimaryConstructor(
-        DeclarationSkipReason.namedConstructor,
-      );
-    }
     if (constructor.parameters.parameters.isEmpty &&
+        !_hasNamedConstructorSuffix(constructor) &&
         constructor.constKeyword == null &&
         declaration.body.members.length != 1 &&
         !realizationPlan.primaryBodyRequired) {
@@ -112,6 +114,68 @@ class _ClassPrimaryConstructorPlanner {
     );
   }
 
+  _PrimaryConstructorTargetDecision _decidePrimaryConstructorTarget(
+    List<ConstructorDeclaration> generativeConstructors,
+  ) {
+    final nonRedirectingConstructors = generativeConstructors
+        .where((constructor) => !_isRedirectingConstructor(constructor))
+        .toList();
+    if (nonRedirectingConstructors.isEmpty) {
+      return const _NoPrimaryConstructorTarget();
+    }
+    if (nonRedirectingConstructors.length > 1) {
+      return const _SkippedPrimaryConstructorTarget(
+        DeclarationSkipReason.multipleConstructors,
+      );
+    }
+
+    return _PlannedPrimaryConstructorTarget(
+      _PrimaryConstructorTarget(constructor: nonRedirectingConstructors.single),
+    );
+  }
+
+  bool _isTrivialMixinClassTarget() {
+    final constructor = declaration.body.members
+        .whereType<ConstructorDeclaration>()
+        .where(
+          (constructor) =>
+              constructor.factoryKeyword == null &&
+              !_isRedirectingConstructor(constructor),
+        )
+        .single;
+    return constructor.parameters.parameters.isEmpty &&
+        constructor.initializers.isEmpty &&
+        constructor.body is EmptyFunctionBody;
+  }
+
+  bool _hasNamedPrimaryConstructorConflict(ConstructorDeclaration constructor) {
+    final name = _namedPrimaryConstructorBasename(constructor);
+    if (name == null) {
+      return false;
+    }
+    for (final member in declaration.body.members) {
+      if (identical(member, constructor)) {
+        continue;
+      }
+      if (member is MethodDeclaration &&
+          member.isStatic &&
+          member.name.lexeme == name) {
+        return true;
+      }
+      if (member is FieldDeclaration && member.isStatic) {
+        for (final variable in member.fields.variables) {
+          if (variable.name.lexeme == name) {
+            return true;
+          }
+        }
+      }
+      if (member is ConstructorDeclaration && member.name?.lexeme == name) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   _ClassMigrationPlan _buildMigrationPlan({
     required ConstructorDeclaration constructor,
     required _ConstructorRealizationPlan realizationPlan,
@@ -131,6 +195,7 @@ class _ClassPrimaryConstructorPlanner {
 
     final primaryParameters =
         constructorParameters.isEmpty &&
+            !_hasNamedConstructorSuffix(constructor) &&
             constructor.constKeyword == null &&
             !primaryBodyRequired
         ? null
@@ -139,7 +204,10 @@ class _ClassPrimaryConstructorPlanner {
       if (constructor.constKeyword != null)
         SourceEdit.insert(declaration.classKeyword.end, ' const'),
       if (primaryParameters != null)
-        SourceEdit.insert(declaration.namePart.end, primaryParameters),
+        SourceEdit.insert(
+          declaration.namePart.end,
+          '${_primaryConstructorSuffix(constructor)}$primaryParameters',
+        ),
       ...realizationPlan.fieldInitializerEdits,
     ];
     final bodyRewritePlan =
@@ -155,17 +223,40 @@ class _ClassPrimaryConstructorPlanner {
 
     return _ClassMigrationPlan(
       edits: edits,
-      emptyClassBodyRewrite: bodyRewritePlan.emptyClassBodyRewrite,
-      emptyClassBodySkipReason: bodyRewritePlan.emptyClassBodySkipReason,
+      emptyBodyRewrite: bodyRewritePlan.emptyBodyRewrite,
+      emptyBodySkipReason: bodyRewritePlan.emptyBodySkipReason,
       migratedDeclaration: MigratedDeclarationReport(
         path: targetFile.relativePath,
-        declarationKind: 'class',
+        declarationKind: _classDeclarationKind(declaration),
         declarationName: declaration.namePart.typeName.lexeme,
         transform: primaryConstructorTransform,
         offset: declaration.offset,
       ),
     );
   }
+}
+
+sealed class _PrimaryConstructorTargetDecision {
+  const _PrimaryConstructorTargetDecision();
+}
+
+final class _PlannedPrimaryConstructorTarget
+    extends _PrimaryConstructorTargetDecision {
+  const _PlannedPrimaryConstructorTarget(this.target);
+
+  final _PrimaryConstructorTarget target;
+}
+
+final class _SkippedPrimaryConstructorTarget
+    extends _PrimaryConstructorTargetDecision {
+  const _SkippedPrimaryConstructorTarget(this.reason);
+
+  final DeclarationSkipReason reason;
+}
+
+final class _NoPrimaryConstructorTarget
+    extends _PrimaryConstructorTargetDecision {
+  const _NoPrimaryConstructorTarget();
 }
 
 sealed class _ClassPrimaryConstructorDecision {
@@ -191,13 +282,30 @@ final class _NoOpClassPrimaryConstructor
   const _NoOpClassPrimaryConstructor();
 }
 
-bool _isUnnamedConstructor(ConstructorDeclaration constructor) {
-  return constructor.name == null && constructor.period == null;
-}
-
 bool _isRedirectingConstructor(ConstructorDeclaration constructor) {
   return constructor.redirectedConstructor != null ||
       constructor.initializers.any(
         (initializer) => initializer is RedirectingConstructorInvocation,
       );
+}
+
+String _primaryConstructorSuffix(ConstructorDeclaration constructor) {
+  final period = constructor.period;
+  final name = constructor.name;
+  if (period == null || name == null) {
+    return '';
+  }
+  return '.${name.lexeme}';
+}
+
+bool _hasNamedConstructorSuffix(ConstructorDeclaration constructor) {
+  return constructor.period != null && constructor.name != null;
+}
+
+String? _namedPrimaryConstructorBasename(ConstructorDeclaration constructor) {
+  final name = constructor.name?.lexeme;
+  if (name == null || name == 'new') {
+    return null;
+  }
+  return name;
 }

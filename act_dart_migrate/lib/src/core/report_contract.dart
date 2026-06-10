@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'discovery.dart';
 import '../version.dart';
 
-const schemaVersion = 2;
+const schemaVersion = 3;
 
 class MigrationRunResult {
   const MigrationRunResult({

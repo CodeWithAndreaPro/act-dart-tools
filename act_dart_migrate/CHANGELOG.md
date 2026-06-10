@@ -1,3 +1,16 @@
+## 0.3.0
+
+- Expanded primary-constructor migration support for eligible unnamed, named, and
+  `.new` constructors, including refined parameter-shape handling.
+- Added extension type primary-constructor migration coverage.
+- Bumped JSON report schema version to `3` for the expanded stable report
+  vocabulary.
+- Improved retained body-member conflict detection and class-body rewrite behavior
+  when migrations remove all body members.
+- Updated migration rules documentation and tests for non-trivial mixin classes,
+  constructor shorthand interactions, named constructors, and field formal
+  parameters.
+
 ## 0.2.0
 
 - Renamed the package and executable to `act_dart_migrate` for consolidated ACT

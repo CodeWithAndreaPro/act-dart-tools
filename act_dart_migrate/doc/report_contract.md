@@ -6,14 +6,14 @@ With `--json`, stdout contains JSON only. Human diagnostics and unexpected inter
 
 ## Success Envelope
 
-Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, and schema version `2`:
+Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, and schema version `3`:
 
 ```json
 {
   "ok": true,
   "migration": "primary-constructors",
-  "schemaVersion": 2,
-  "toolVersion": "0.2.0",
+  "schemaVersion": 3,
+  "toolVersion": "0.3.0",
   "root": "/absolute/target/package",
   "dryRun": false,
   "formatted": false,
@@ -71,8 +71,8 @@ Failure JSON output has `ok: false` and an `error` object:
 {
   "ok": false,
   "migration": "primary-constructors",
-  "schemaVersion": 2,
-  "toolVersion": "0.2.0",
+  "schemaVersion": 3,
+  "toolVersion": "0.3.0",
   "error": {
     "code": "invalidRoot",
     "message": "Target package root does not exist or has no pubspec.yaml: example"
@@ -87,8 +87,8 @@ Root-level errors omit `migration` because no migration was selected:
 ```json
 {
   "ok": false,
-  "schemaVersion": 2,
-  "toolVersion": "0.2.0",
+  "schemaVersion": 3,
+  "toolVersion": "0.3.0",
   "error": {
     "code": "argumentError",
     "message": "Unknown Migration Subcommand."

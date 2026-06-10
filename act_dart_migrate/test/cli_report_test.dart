@@ -171,7 +171,7 @@ void main() {
               'dart run act_dart_migrate primary-constructors <target-package> --skip-super-constructor-initializers',
             ],
             'description':
-                'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax.',
+                'Migrate eligible classes and enhanced enums to Dart primary-constructor syntax, with extension type support for representation validation and safe body transforms.',
           },
         ],
       });

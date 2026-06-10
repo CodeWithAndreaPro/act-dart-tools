@@ -17,13 +17,7 @@ The public transform names are:
 - `constructorShorthand`
 - `emptyClassBody`
 
-`primaryConstructor` covers both class primary-constructor migration and
-enhanced-enum primary-constructor migration. For eligible classes and enhanced
-enums, it moves ordinary constructor boilerplate into Dart experimental
-primary-constructor syntax while preserving the declaration shape that matters
-to callers: modifiers, type parameters, bounds, clauses, constructor names,
-parameter names, nullability, default values, `required`, private declaring
-parameter names, and simple `super` parameters.
+`primaryConstructor` covers class primary-constructor migration, enhanced-enum primary-constructor migration, and extension type representation-parameter validation. For eligible classes and enhanced enums, it moves ordinary constructor boilerplate into Dart experimental primary-constructor syntax while preserving the declaration shape that matters to callers: modifiers, type parameters, bounds, clauses, constructor names, parameter names, nullability, default values, `required`, private declaring parameter names, and simple `super` parameters.
 
 The selected primary-constructor target may be unnamed, named, or `.new` when
 there is exactly one non-redirecting generative constructor that can be migrated
@@ -70,6 +64,8 @@ and retained enum members such as methods, getters, factories, and static
 members. Named enum constructors can become named enum primary constructors when
 the enum has a single safe non-redirecting generative constructor target.
 
+Extension type declarations already carry their primary constructor in the declaration header. The migration treats valid extension type primary constructors as supported fixed-point input, preserves omitted or explicit `final` representation parameters unchanged, and validates the representation parameter before applying safe extension-type body transforms. Extension types may retain additional body constructors; those constructors are not treated as a `multipleConstructors` primary-constructor skip.
+
 `constructorShorthand` covers eligible generative and factory constructors that
 stay in class, enhanced-enum, or extension-type bodies but can be rewritten to
 constructor declaration shorthand. Primary-constructor migration is preferred
@@ -80,11 +76,7 @@ becomes `factory()`. `const`, `external`, metadata, documentation comments,
 parameters, initializer lists, bodies, and redirected factory targets are
 preserved.
 
-Constructor shorthand can still run after a primary-constructor skip when the
-skip is caused by constructor shape or metadata that does not make shorthand
-unsafe, such as `multipleConstructors`, `externalConstructor`,
-`namedConstructor`, `constructorMetadata`, `constructorComment`, or
-`parameterMetadata`.
+Constructor shorthand can still run after a primary-constructor skip when the skip is caused by constructor shape or metadata that does not make shorthand unsafe, such as `multipleConstructors`, `externalConstructor`, `namedConstructor`, `constructorMetadata`, `constructorComment`, or `parameterMetadata`. Extension type representation-parameter skips suppress constructor-shorthand and empty-body edits for that extension type declaration in the same run.
 
 `emptyClassBody` collapses truly empty bodies to semicolon form for ordinary
 classes, mixin classes, mixins, extension types, extensions, and empty enums,
@@ -122,6 +114,7 @@ Constructor shape:
   are not migrated.
 - `primaryConstructorConflict`: the generated primary constructor name would
   conflict with a retained body member.
+- `extensionTypeRepresentationParameter`: an extension type primary constructor does not have exactly one supported non-`var` representation parameter.
 - `externalConstructor`: external constructors have no body that can be safely
   rewritten.
 - `redirectingConstructor`: redirecting constructors are not migrated.

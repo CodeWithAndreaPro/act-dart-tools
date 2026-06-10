@@ -84,7 +84,7 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
     if (reportsEmptyClassBody)
       {
         'path': path,
-        'declarationKind': 'class',
+        'declarationKind': declarationKind,
         'declarationName': declarationName,
         'transform': 'emptyClassBody',
         'offset': 0,

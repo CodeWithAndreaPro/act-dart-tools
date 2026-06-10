@@ -350,8 +350,15 @@ class _TargetFileDeclarationPlanner {
   _DeclarationMigrationPlan _planExtensionTypeDeclaration(
     ExtensionTypeDeclaration declaration,
   ) {
+    final primaryConstructorPlan = _planExtensionTypePrimaryConstructor(
+      declaration,
+    );
+    if (primaryConstructorPlan.skippedDeclarations.isNotEmpty) {
+      return primaryConstructorPlan;
+    }
+
     final shorthandPlan = _planConstructorShorthand(
-      const _DeclarationMigrationPlan(),
+      primaryConstructorPlan,
       declarationKind: 'constructor',
       declarationName: declaration.namePart.typeName.lexeme,
       members: declaration.body.members,
@@ -363,16 +370,48 @@ class _TargetFileDeclarationPlanner {
       offset: declaration.offset,
     );
     return _DeclarationMigrationPlan(
-      edits: [...shorthandPlan.edits, ...emptyBodyPlan.edits],
+      edits: [
+        ...primaryConstructorPlan.edits,
+        ...shorthandPlan.edits,
+        ...emptyBodyPlan.edits,
+      ],
       migratedDeclarations: [
+        ...primaryConstructorPlan.migratedDeclarations,
         ...shorthandPlan.migratedDeclarations,
         ...emptyBodyPlan.migratedDeclarations,
       ],
       skippedDeclarations: [
+        ...primaryConstructorPlan.skippedDeclarations,
         ...shorthandPlan.skippedDeclarations,
         ...emptyBodyPlan.skippedDeclarations,
       ],
     );
+  }
+
+  _DeclarationMigrationPlan _planExtensionTypePrimaryConstructor(
+    ExtensionTypeDeclaration declaration,
+  ) {
+    final extensionTypePlanner = _ExtensionTypePrimaryConstructorPlanner(
+      declaration: declaration,
+    );
+    return switch (extensionTypePlanner.decide()) {
+      _SkippedExtensionTypePrimaryConstructor(:final reason) =>
+        _DeclarationMigrationPlan(
+          skippedDeclarations: [
+            SkippedDeclarationReport(
+              path: targetFile.relativePath,
+              declarationKind: 'extensionType',
+              declarationName: declaration.namePart.typeName.lexeme,
+              transform: primaryConstructorTransform,
+              offset: declaration.offset,
+              reason: reason.code,
+              message: reason.message,
+            ),
+          ],
+        ),
+      _NoOpExtensionTypePrimaryConstructor() =>
+        const _DeclarationMigrationPlan(),
+    };
   }
 
   _DeclarationMigrationPlan _planExtensionDeclaration(

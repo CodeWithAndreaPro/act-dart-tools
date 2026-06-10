@@ -227,7 +227,7 @@ class _ClassPrimaryConstructorPlanner {
       emptyBodySkipReason: bodyRewritePlan.emptyBodySkipReason,
       migratedDeclaration: MigratedDeclarationReport(
         path: targetFile.relativePath,
-        declarationKind: 'class',
+        declarationKind: _classDeclarationKind(declaration),
         declarationName: declaration.namePart.typeName.lexeme,
         transform: primaryConstructorTransform,
         offset: declaration.offset,

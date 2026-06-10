@@ -17,6 +17,13 @@ environment:
   sdk: ^3.12.0
 ''',
   );
+  File(
+    '${root.path}${Platform.pathSeparator}analysis_options.yaml',
+  ).writeAsStringSync('''
+analyzer:
+  enable-experiment:
+    - primary-constructors
+''');
   return root;
 }
 
@@ -58,6 +65,8 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
   required String declarationName,
   String declarationKind = 'class',
   bool reportsEmptyClassBody = false,
+  List<Map<String, Object?>> additionalMigratedDeclarations = const [],
+  Map<String, int> additionalTransformCounts = const {},
 }) {
   expect(result.exitCode, exitSuccess);
   expect(result.stderr, isEmpty);
@@ -80,10 +89,19 @@ Map<String, Object?> expectSinglePrimaryConstructorMigration(
         'transform': 'emptyClassBody',
         'offset': 0,
       },
+    ...additionalMigratedDeclarations,
   ]);
-  expect(decoded['transformCounts'], {
+  expect(decoded['transformCounts'], <String, int>{
     'primaryConstructor': 1,
     if (reportsEmptyClassBody) 'emptyClassBody': 1,
+    for (final entry in additionalTransformCounts.entries)
+      entry.key:
+          (entry.value +
+          (entry.key == 'primaryConstructor'
+              ? 1
+              : entry.key == 'emptyClassBody' && reportsEmptyClassBody
+              ? 1
+              : 0)),
   });
   return decoded;
 }
@@ -140,6 +158,14 @@ Future<String> formattedFile(Directory root, String relativePath) async {
   ]);
   expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
   return file.readAsStringSync();
+}
+
+Future<void> expectAnalyzerClean(Directory root) async {
+  final result = await Process.run(Platform.resolvedExecutable, [
+    'analyze',
+    '.',
+  ], workingDirectory: root.path);
+  expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
 }
 
 String readFile(Directory root, String relativePath) {

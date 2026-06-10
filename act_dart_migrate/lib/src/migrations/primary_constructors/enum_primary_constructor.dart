@@ -30,19 +30,26 @@ final class _EnumPrimaryConstructorPlanner {
       return const _NoOpEnumPrimaryConstructor();
     }
 
-    final unnamedConstructors = generativeConstructors
-        .where(_isUnnamedConstructor)
-        .toList();
-    if (unnamedConstructors.isEmpty) {
-      return const _NoOpEnumPrimaryConstructor();
+    final primaryTargetDecision = _decidePrimaryConstructorTarget(
+      generativeConstructors,
+    );
+    final _PrimaryConstructorTarget primaryTarget;
+    switch (primaryTargetDecision) {
+      case _PlannedPrimaryConstructorTarget(:final target):
+        primaryTarget = target;
+      case _SkippedPrimaryConstructorTarget(:final reason):
+        return _SkippedEnumPrimaryConstructor(reason);
+      case _NoPrimaryConstructorTarget():
+        return const _NoOpEnumPrimaryConstructor();
     }
-    if (unnamedConstructors.length > 1) {
+
+    final constructor = primaryTarget.constructor;
+    if (_hasNamedPrimaryConstructorConflict(constructor)) {
       return const _SkippedEnumPrimaryConstructor(
-        DeclarationSkipReason.multipleConstructors,
+        DeclarationSkipReason.primaryConstructorConflict,
       );
     }
 
-    final constructor = unnamedConstructors.single;
     if (constructor.externalKeyword != null) {
       return const _SkippedEnumPrimaryConstructor(
         DeclarationSkipReason.externalConstructor,
@@ -63,7 +70,6 @@ final class _EnumPrimaryConstructorPlanner {
         DeclarationSkipReason.redirectingConstructor,
       );
     }
-
     final bodyInfo = _enumBodyInfo(declaration);
     final realizationDecision = _ConstructorRealizationPlanner(
       source: source,
@@ -77,15 +83,9 @@ final class _EnumPrimaryConstructorPlanner {
       case _SkippedConstructorRealization(:final reason):
         return _SkippedEnumPrimaryConstructor(reason);
     }
-
-    if (generativeConstructors.any(
-      (constructor) =>
-          constructor.externalKeyword == null &&
-          constructor != unnamedConstructors.single &&
-          !_isUnnamedConstructor(constructor),
-    )) {
+    if (constructor.body is BlockFunctionBody) {
       return const _SkippedEnumPrimaryConstructor(
-        DeclarationSkipReason.namedConstructor,
+        DeclarationSkipReason.unsupportedConstructorBody,
       );
     }
 
@@ -95,6 +95,54 @@ final class _EnumPrimaryConstructorPlanner {
         realizationPlan: realizationPlan,
       ),
     );
+  }
+
+  _PrimaryConstructorTargetDecision _decidePrimaryConstructorTarget(
+    List<ConstructorDeclaration> generativeConstructors,
+  ) {
+    final nonRedirectingConstructors = generativeConstructors
+        .where((constructor) => !_isRedirectingConstructor(constructor))
+        .toList();
+    if (nonRedirectingConstructors.isEmpty) {
+      return const _NoPrimaryConstructorTarget();
+    }
+    if (nonRedirectingConstructors.length > 1) {
+      return const _SkippedPrimaryConstructorTarget(
+        DeclarationSkipReason.multipleConstructors,
+      );
+    }
+
+    return _PlannedPrimaryConstructorTarget(
+      _PrimaryConstructorTarget(constructor: nonRedirectingConstructors.single),
+    );
+  }
+
+  bool _hasNamedPrimaryConstructorConflict(ConstructorDeclaration constructor) {
+    final name = _namedPrimaryConstructorBasename(constructor);
+    if (name == null) {
+      return false;
+    }
+    for (final member in declaration.body.members) {
+      if (identical(member, constructor)) {
+        continue;
+      }
+      if (member is MethodDeclaration &&
+          member.isStatic &&
+          member.name.lexeme == name) {
+        return true;
+      }
+      if (member is FieldDeclaration && member.isStatic) {
+        for (final variable in member.fields.variables) {
+          if (variable.name.lexeme == name) {
+            return true;
+          }
+        }
+      }
+      if (member is ConstructorDeclaration && member.name?.lexeme == name) {
+        return true;
+      }
+    }
+    return false;
   }
 
   _EnumMigrationPlan _buildMigrationPlan({
@@ -118,7 +166,10 @@ final class _EnumPrimaryConstructorPlanner {
       parameterEdits,
     );
     final edits = <SourceEdit>[
-      SourceEdit.insert(declaration.namePart.end, primaryParameters),
+      SourceEdit.insert(
+        declaration.namePart.end,
+        '${_primaryConstructorSuffix(constructor)}$primaryParameters',
+      ),
       ...realizationPlan.fieldInitializerEdits,
       ..._enumBodyEdits(
         constructor: constructor,

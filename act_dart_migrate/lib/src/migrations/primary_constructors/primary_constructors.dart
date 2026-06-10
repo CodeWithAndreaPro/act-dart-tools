@@ -62,7 +62,15 @@ enum DeclarationSkipReason {
   ),
   namedConstructor(
     'namedConstructor',
-    'Named generative constructors are not supported.',
+    'Named generative constructors are not supported in this shape.',
+  ),
+  mixinClassPrimaryConstructor(
+    'mixinClassPrimaryConstructor',
+    'Non-trivial mixin class primary constructors are not supported.',
+  ),
+  primaryConstructorConflict(
+    'primaryConstructorConflict',
+    'The primary constructor name conflicts with a retained body member.',
   ),
   externalConstructor(
     'externalConstructor',

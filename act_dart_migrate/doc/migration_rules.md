@@ -91,6 +91,10 @@ Constructor shape:
   primary-constructor target ambiguous.
 - `namedConstructor`: named generative constructors are not migrated to primary
   constructors.
+- `mixinClassPrimaryConstructor`: non-trivial mixin class primary constructors
+  are not migrated.
+- `primaryConstructorConflict`: the generated primary constructor name would
+  conflict with a retained body member.
 - `externalConstructor`: external constructors have no body that can be safely
   rewritten.
 - `redirectingConstructor`: redirecting constructors are not migrated.

@@ -370,7 +370,12 @@ bool _dependsOnlyOnConstructorParameters(
 ) {
   final visitor = _ParameterOnlyExpressionVisitor(parameterNames);
   expression.accept(visitor);
-  return visitor.isSafe;
+  if (!visitor.isSafe) {
+    return false;
+  }
+  final writeVisitor = _ParameterWriteVisitor(parameterNames);
+  expression.accept(writeVisitor);
+  return !writeVisitor.hasParameterWrite;
 }
 
 class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
@@ -446,6 +451,58 @@ class _ParameterOnlyExpressionVisitor extends RecursiveAstVisitor<void> {
     }
     final firstUnit = identifier.codeUnitAt(0);
     return firstUnit >= 65 && firstUnit <= 90;
+  }
+}
+
+class _ParameterWriteVisitor extends RecursiveAstVisitor<void> {
+  _ParameterWriteVisitor(this.parameterNames);
+
+  final Set<String> parameterNames;
+  bool hasParameterWrite = false;
+
+  bool get _done => hasParameterWrite;
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) {
+    _checkWriteTarget(node.leftHandSide);
+    if (!_done) {
+      super.visitAssignmentExpression(node);
+    }
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    if (node.operator.lexeme == '++' || node.operator.lexeme == '--') {
+      _checkWriteTarget(node.operand);
+    }
+    if (!_done) {
+      super.visitPostfixExpression(node);
+    }
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    if (node.operator.lexeme == '++' || node.operator.lexeme == '--') {
+      _checkWriteTarget(node.operand);
+    }
+    if (!_done) {
+      super.visitPrefixExpression(node);
+    }
+  }
+
+  void _checkWriteTarget(Expression target) {
+    target = _unparenthesized(target);
+    if (target is SimpleIdentifier &&
+        parameterNames.contains(target.token.lexeme)) {
+      hasParameterWrite = true;
+    }
+  }
+
+  Expression _unparenthesized(Expression target) {
+    while (target is ParenthesizedExpression) {
+      target = target.expression;
+    }
+    return target;
   }
 }
 

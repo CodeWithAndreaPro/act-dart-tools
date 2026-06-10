@@ -34,15 +34,13 @@ final class _ClassBodyRewritePlanner {
       plan = _bodyContainsOnlyRemovedMemberSource(removalRanges)
           ? _ClassBodyRewritePlan(
               edits: const [],
-              emptyClassBodyRewrite: _EmptyClassBodyRewriteIntent(
-                declaration: declaration,
-              ),
+              emptyBodyRewrite: _EmptyBodyRewriteIntent(body: declaration.body),
             )
           : _ClassBodyRewritePlan(
               edits: [
                 for (final range in removalRanges) SourceEdit.delete(range),
               ],
-              emptyClassBodySkipReason: DeclarationSkipReason.classBodyComment,
+              emptyBodySkipReason: DeclarationSkipReason.classBodyComment,
             );
     } else {
       plan = _ClassBodyRewritePlan(
@@ -76,7 +74,7 @@ final class _ClassBodyRewritePlanner {
   }
 
   bool _bodyContainsOnlyRemovedMemberSource(List<SourceRange> removalRanges) {
-    final bodyRange = _blockClassBodyContentRange(declaration.body);
+    final bodyRange = _blockBodyContentRange(declaration.body);
     if (bodyRange == null) {
       return false;
     }

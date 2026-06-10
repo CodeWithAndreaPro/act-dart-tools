@@ -31,11 +31,20 @@ class _TargetFileDeclarationPlanner {
   _DeclarationMigrationPlan _planDeclaration(
     CompilationUnitMember declaration,
   ) {
+    if (declaration is MixinDeclaration) {
+      return _planMixinDeclaration(declaration);
+    }
     if (declaration is ClassDeclaration) {
       return _planClassDeclaration(declaration);
     }
     if (declaration is EnumDeclaration) {
       return _planEnumDeclaration(declaration);
+    }
+    if (declaration is ExtensionTypeDeclaration) {
+      return _planExtensionTypeDeclaration(declaration);
+    }
+    if (declaration is ExtensionDeclaration) {
+      return _planExtensionDeclaration(declaration);
     }
     return const _DeclarationMigrationPlan();
   }
@@ -44,34 +53,43 @@ class _TargetFileDeclarationPlanner {
     ClassDeclaration declaration,
   ) {
     final primaryConstructorPlan = _planClassPrimaryConstructor(declaration);
-    final emptyClassBodyPlan = _planStandaloneEmptyClassBody(declaration);
+    final emptyBodyPlan = _planStandaloneEmptyBody(
+      body: declaration.body,
+      declarationKind: _classDeclarationKind(declaration),
+      declarationName: declaration.namePart.typeName.lexeme,
+      offset: declaration.offset,
+    );
     final constructorShorthandPlan = _planConstructorShorthand(
-      declaration,
       primaryConstructorPlan,
+      declarationKind: 'constructor',
+      declarationName: declaration.namePart.typeName.lexeme,
+      members: declaration.body.members,
     );
     return _DeclarationMigrationPlan(
       edits: [
         ...primaryConstructorPlan.edits,
         ...constructorShorthandPlan.edits,
-        ...emptyClassBodyPlan.edits,
+        ...emptyBodyPlan.edits,
       ],
       migratedDeclarations: [
         ...primaryConstructorPlan.migratedDeclarations,
         ...constructorShorthandPlan.migratedDeclarations,
-        ...emptyClassBodyPlan.migratedDeclarations,
+        ...emptyBodyPlan.migratedDeclarations,
       ],
       skippedDeclarations: [
         ...primaryConstructorPlan.skippedDeclarations,
         ...constructorShorthandPlan.skippedDeclarations,
-        ...emptyClassBodyPlan.skippedDeclarations,
+        ...emptyBodyPlan.skippedDeclarations,
       ],
     );
   }
 
   _DeclarationMigrationPlan _planConstructorShorthand(
-    ClassDeclaration declaration,
-    _DeclarationMigrationPlan primaryConstructorPlan,
-  ) {
+    _DeclarationMigrationPlan primaryConstructorPlan, {
+    required String declarationKind,
+    required String declarationName,
+    required NodeList<ClassMember> members,
+  }) {
     final primaryConstructorWasMigrated = primaryConstructorPlan
         .migratedDeclarations
         .any(
@@ -93,9 +111,10 @@ class _TargetFileDeclarationPlanner {
 
     final edits = <SourceEdit>[];
     final migratedDeclarations = <MigratedDeclarationReport>[];
-    for (final constructor
-        in declaration.body.members.whereType<ConstructorDeclaration>()) {
-      if (primaryConstructorWasMigrated && _isUnnamedConstructor(constructor)) {
+    for (final constructor in members.whereType<ConstructorDeclaration>()) {
+      if (primaryConstructorWasMigrated &&
+          constructor.factoryKeyword == null &&
+          !_isRedirectingConstructor(constructor)) {
         continue;
       }
 
@@ -107,8 +126,8 @@ class _TargetFileDeclarationPlanner {
       migratedDeclarations.add(
         MigratedDeclarationReport(
           path: targetFile.relativePath,
-          declarationKind: 'constructor',
-          declarationName: _constructorReportName(declaration, constructor),
+          declarationKind: declarationKind,
+          declarationName: _constructorReportName(declarationName, constructor),
           transform: constructorShorthandTransform,
           offset: constructor.offset,
         ),
@@ -123,6 +142,7 @@ class _TargetFileDeclarationPlanner {
 
   bool _allowsConstructorShorthandAfterPrimarySkip(String reason) {
     return switch (reason) {
+      'multipleConstructors' ||
       'namedConstructor' ||
       'externalConstructor' ||
       'constructorMetadata' ||
@@ -134,10 +154,12 @@ class _TargetFileDeclarationPlanner {
 
   SourceEdit? _constructorShorthandRewrite(ConstructorDeclaration constructor) {
     final typeName = constructor.typeName;
-    if (constructor.factoryKeyword != null ||
-        constructor.newKeyword != null ||
-        typeName == null) {
+    if (constructor.newKeyword != null || typeName == null) {
       return null;
+    }
+
+    if (constructor.factoryKeyword != null) {
+      return _factoryConstructorShorthandRewrite(constructor, typeName);
     }
 
     final name = constructor.name;
@@ -149,33 +171,57 @@ class _TargetFileDeclarationPlanner {
     return SourceEdit.replace(range, replacement);
   }
 
-  String _constructorReportName(
-    ClassDeclaration declaration,
+  SourceEdit? _factoryConstructorShorthandRewrite(
     ConstructorDeclaration constructor,
+    SimpleIdentifier typeName,
   ) {
-    final className = declaration.namePart.typeName.lexeme;
-    final constructorName = constructor.name?.lexeme;
-    if (constructorName == null) {
-      return className;
-    }
-    return '$className.$constructorName';
+    final name = constructor.name;
+    final range = name == null
+        ? SourceRange.fromStartEnd(
+            start: constructor.factoryKeyword!.end,
+            end: typeName.end,
+          )
+        : SourceRange.fromStartEnd(start: typeName.offset, end: name.offset);
+    return SourceEdit.replace(range, '');
   }
 
-  _DeclarationMigrationPlan _planStandaloneEmptyClassBody(
-    ClassDeclaration declaration,
+  String _constructorReportName(
+    String declarationName,
+    ConstructorDeclaration constructor,
   ) {
-    final emptyClassBodyPlanner = _EmptyClassBodyPlanner(
-      source: source,
-      declaration: declaration,
-    );
-    return switch (emptyClassBodyPlanner.decide()) {
+    final constructorName = constructor.name?.lexeme;
+    if (constructorName == null) {
+      return declarationName;
+    }
+    return '$declarationName.$constructorName';
+  }
+
+  _DeclarationMigrationPlan _planStandaloneEmptyBody({
+    required AstNode body,
+    required String declarationKind,
+    required String declarationName,
+    required int offset,
+  }) {
+    final emptyBodyPlanner = _EmptyBodyPlanner(source: source, body: body);
+    return switch (emptyBodyPlanner.decide()) {
       _MigratedEmptyClassBody(:final rewrite) => _DeclarationMigrationPlan(
         edits: [rewrite.toEdit()],
-        migratedDeclarations: [_emptyClassBodyMigratedReport(declaration)],
+        migratedDeclarations: [
+          _emptyBodyMigratedReport(
+            declarationKind: declarationKind,
+            declarationName: declarationName,
+            offset: offset,
+          ),
+        ],
       ),
       _SkippedEmptyClassBody(:final reason) => _DeclarationMigrationPlan(
         skippedDeclarations: [
-          _emptyClassBodySkippedReport(declaration, reason),
+          _emptyBodySkippedReport(
+            declarationKind: declarationKind,
+            declarationName: declarationName,
+            offset: offset,
+            reason: reason,
+          ),
         ],
       ),
       _NoOpEmptyClassBody() => const _DeclarationMigrationPlan(),
@@ -197,12 +243,21 @@ class _TargetFileDeclarationPlanner {
           edits: plan.sourceEdits,
           migratedDeclarations: [
             plan.migratedDeclaration,
-            if (plan.emptyClassBodyRewrite != null)
-              _emptyClassBodyMigratedReport(declaration),
+            if (plan.emptyBodyRewrite != null)
+              _emptyBodyMigratedReport(
+                declarationKind: _classDeclarationKind(declaration),
+                declarationName: declaration.namePart.typeName.lexeme,
+                offset: declaration.offset,
+              ),
           ],
           skippedDeclarations: [
-            if (plan.emptyClassBodySkipReason case final reason?)
-              _emptyClassBodySkippedReport(declaration, reason),
+            if (plan.emptyBodySkipReason case final reason?)
+              _emptyBodySkippedReport(
+                declarationKind: _classDeclarationKind(declaration),
+                declarationName: declaration.namePart.typeName.lexeme,
+                offset: declaration.offset,
+                reason: reason,
+              ),
           ],
         ),
       _SkippedClassPrimaryConstructor(:final reason) =>
@@ -210,7 +265,7 @@ class _TargetFileDeclarationPlanner {
           skippedDeclarations: [
             SkippedDeclarationReport(
               path: targetFile.relativePath,
-              declarationKind: 'class',
+              declarationKind: _classDeclarationKind(declaration),
               declarationName: declaration.namePart.typeName.lexeme,
               transform: primaryConstructorTransform,
               offset: declaration.offset,
@@ -229,7 +284,7 @@ class _TargetFileDeclarationPlanner {
       targetFile: targetFile,
       declaration: declaration,
     );
-    return switch (enumPlanner.decide()) {
+    final primaryConstructorPlan = switch (enumPlanner.decide()) {
       _MigratedEnumPrimaryConstructor(:final plan) => _DeclarationMigrationPlan(
         edits: plan.sourceEdits,
         migratedDeclarations: [plan.migratedDeclaration],
@@ -250,34 +305,121 @@ class _TargetFileDeclarationPlanner {
         ),
       _NoOpEnumPrimaryConstructor() => const _DeclarationMigrationPlan(),
     };
+    final shorthandPlan = _planConstructorShorthand(
+      primaryConstructorPlan,
+      declarationKind: 'constructor',
+      declarationName: declaration.namePart.typeName.lexeme,
+      members: declaration.body.members,
+    );
+    final emptyBodyPlan = _planStandaloneEmptyBody(
+      body: declaration.body,
+      declarationKind: 'enum',
+      declarationName: declaration.namePart.typeName.lexeme,
+      offset: declaration.offset,
+    );
+    return _DeclarationMigrationPlan(
+      edits: [
+        ...primaryConstructorPlan.edits,
+        ...shorthandPlan.edits,
+        ...emptyBodyPlan.edits,
+      ],
+      migratedDeclarations: [
+        ...primaryConstructorPlan.migratedDeclarations,
+        ...shorthandPlan.migratedDeclarations,
+        ...emptyBodyPlan.migratedDeclarations,
+      ],
+      skippedDeclarations: [
+        ...primaryConstructorPlan.skippedDeclarations,
+        ...shorthandPlan.skippedDeclarations,
+        ...emptyBodyPlan.skippedDeclarations,
+      ],
+    );
   }
 
-  MigratedDeclarationReport _emptyClassBodyMigratedReport(
-    ClassDeclaration declaration,
+  _DeclarationMigrationPlan _planMixinDeclaration(
+    MixinDeclaration declaration,
   ) {
-    return MigratedDeclarationReport(
-      path: targetFile.relativePath,
-      declarationKind: 'class',
-      declarationName: declaration.namePart.typeName.lexeme,
-      transform: emptyClassBodyTransform,
+    return _planStandaloneEmptyBody(
+      body: declaration.body,
+      declarationKind: 'mixin',
+      declarationName: declaration.name.lexeme,
       offset: declaration.offset,
     );
   }
 
-  SkippedDeclarationReport _emptyClassBodySkippedReport(
-    ClassDeclaration declaration,
-    DeclarationSkipReason reason,
+  _DeclarationMigrationPlan _planExtensionTypeDeclaration(
+    ExtensionTypeDeclaration declaration,
   ) {
+    final shorthandPlan = _planConstructorShorthand(
+      const _DeclarationMigrationPlan(),
+      declarationKind: 'constructor',
+      declarationName: declaration.namePart.typeName.lexeme,
+      members: declaration.body.members,
+    );
+    final emptyBodyPlan = _planStandaloneEmptyBody(
+      body: declaration.body,
+      declarationKind: 'extensionType',
+      declarationName: declaration.namePart.typeName.lexeme,
+      offset: declaration.offset,
+    );
+    return _DeclarationMigrationPlan(
+      edits: [...shorthandPlan.edits, ...emptyBodyPlan.edits],
+      migratedDeclarations: [
+        ...shorthandPlan.migratedDeclarations,
+        ...emptyBodyPlan.migratedDeclarations,
+      ],
+      skippedDeclarations: [
+        ...shorthandPlan.skippedDeclarations,
+        ...emptyBodyPlan.skippedDeclarations,
+      ],
+    );
+  }
+
+  _DeclarationMigrationPlan _planExtensionDeclaration(
+    ExtensionDeclaration declaration,
+  ) {
+    return _planStandaloneEmptyBody(
+      body: declaration.body,
+      declarationKind: 'extension',
+      declarationName: declaration.name?.lexeme ?? '<unnamed extension>',
+      offset: declaration.offset,
+    );
+  }
+
+  MigratedDeclarationReport _emptyBodyMigratedReport({
+    required String declarationKind,
+    required String declarationName,
+    required int offset,
+  }) {
+    return MigratedDeclarationReport(
+      path: targetFile.relativePath,
+      declarationKind: declarationKind,
+      declarationName: declarationName,
+      transform: emptyClassBodyTransform,
+      offset: offset,
+    );
+  }
+
+  SkippedDeclarationReport _emptyBodySkippedReport({
+    required String declarationKind,
+    required String declarationName,
+    required int offset,
+    required DeclarationSkipReason reason,
+  }) {
     return SkippedDeclarationReport(
       path: targetFile.relativePath,
-      declarationKind: 'class',
-      declarationName: declaration.namePart.typeName.lexeme,
+      declarationKind: declarationKind,
+      declarationName: declarationName,
       transform: emptyClassBodyTransform,
-      offset: declaration.offset,
+      offset: offset,
       reason: reason.code,
       message: reason.message,
     );
   }
+}
+
+String _classDeclarationKind(ClassDeclaration declaration) {
+  return declaration.mixinKeyword == null ? 'class' : 'mixinClass';
 }
 
 class _TargetFileMigrationPlanBuilder {

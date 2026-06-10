@@ -12,7 +12,6 @@ final class _FieldToParameterPlanner {
   final Map<String, String> privateFieldInitializersByName;
   final Set<String> _usedFieldNames = <String>{};
   final Set<String> _usedPrivateInitializers = <String>{};
-  bool _usedRegularPassthroughParameter = false;
 
   bool get _hasUnusedPrivateFieldInitializers {
     return _usedPrivateInitializers.length !=
@@ -51,14 +50,6 @@ final class _FieldToParameterPlanner {
         );
       }
     }
-    if (_usedRegularPassthroughParameter &&
-        _usedFieldNames.isEmpty &&
-        _usedPrivateInitializers.isEmpty &&
-        fieldInitializers.isEmpty) {
-      return const _SkippedFieldToParameter(
-        DeclarationSkipReason.unsupportedParameterShape,
-      );
-    }
     if (_hasUninitializedUnmappedFields(fieldInitializers)) {
       return const _SkippedFieldToParameter(
         DeclarationSkipReason.unsupportedParameterShape,
@@ -72,12 +63,6 @@ final class _FieldToParameterPlanner {
     FormalParameter parameter, {
     required Set<String> fieldFormalNames,
   }) {
-    if (parameter.metadata.isNotEmpty && parameter is! FieldFormalParameter) {
-      return const _SkippedConstructorParameter(
-        DeclarationSkipReason.parameterMetadata,
-      );
-    }
-
     if (parameter is FieldFormalParameter) {
       return _decideFieldFormalParameter(
         parameter,
@@ -114,15 +99,32 @@ final class _FieldToParameterPlanner {
     }
 
     final field = fieldClassification.field!;
+    if (parameter.type case final parameterType?) {
+      if (parameter.functionTypedSuffix != null ||
+          _sourceFor(source, parameterType) != field.typeSource) {
+        return const _SkippedConstructorParameter(
+          DeclarationSkipReason.unsupportedParameterShape,
+        );
+      }
+    }
+    final includeCovariant =
+        field.isCovariant || parameter.covariantKeyword != null;
+    if (includeCovariant && field.declaringKeyword == 'final') {
+      return const _SkippedConstructorParameter(
+        DeclarationSkipReason.unsupportedParameterShape,
+      );
+    }
+    final replacementStart = _fieldFormalReplacementStart(parameter);
     return _planMappedFieldParameter(
       field: field,
       fieldName: fieldName,
       parameterOffset: parameter.offset,
-      prefixEndOffset: parameter.thisKeyword.offset,
+      prefixEndOffset: replacementStart,
       replacementOffset: field.leadingCommentSource != null
           ? parameter.offset
-          : parameter.thisKeyword.offset,
-      replacementEnd: parameter.name.end,
+          : replacementStart,
+      replacementEnd: parameter.functionTypedSuffix?.end ?? parameter.name.end,
+      includeCovariant: includeCovariant,
     );
   }
 
@@ -140,7 +142,6 @@ final class _FieldToParameterPlanner {
       return privateFieldDecision;
     }
 
-    _usedRegularPassthroughParameter = true;
     return const _PlannedConstructorParameter(_ParameterMigrationPlan());
   }
 
@@ -151,6 +152,7 @@ final class _FieldToParameterPlanner {
     final parameterType = parameter.type;
     if (parameterName == null ||
         parameterName.startsWith('_') ||
+        parameter.metadata.isNotEmpty ||
         parameterType == null ||
         !parameter.isNamed) {
       return null;
@@ -182,6 +184,7 @@ final class _FieldToParameterPlanner {
           ? parameter.offset
           : parameterType.offset,
       replacementEnd: parameter.name!.end,
+      includeCovariant: field.isCovariant,
     );
     if (parameterDecision is _PlannedConstructorParameter) {
       _usedPrivateInitializers.add(fieldName);
@@ -231,6 +234,7 @@ final class _FieldToParameterPlanner {
     required int prefixEndOffset,
     required int replacementOffset,
     required int replacementEnd,
+    required bool includeCovariant,
   }) {
     if (!_usedFieldNames.add(fieldName)) {
       return const _SkippedConstructorParameter(
@@ -250,7 +254,12 @@ final class _FieldToParameterPlanner {
               start: replacementOffset,
               end: replacementEnd,
             ),
-            _declaringParameterSource(field, fieldName, prefix: prefix),
+            _declaringParameterSource(
+              field,
+              fieldName,
+              prefix: prefix,
+              includeCovariant: includeCovariant,
+            ),
           ),
         ],
         removableFields: [field.declaration],
@@ -379,14 +388,12 @@ _FieldToParameterFieldClassification _classifyFieldToParameterField({
       DeclarationSkipReason.initializedField,
     );
   }
-  if (fieldList.type == null) {
+  if (member.abstractKeyword != null || fieldList.isConst) {
     return const _FieldToParameterFieldClassification.skip(
-      DeclarationSkipReason.implicitFieldType,
+      DeclarationSkipReason.unsupportedFieldModifier,
     );
   }
-  if (member.abstractKeyword != null ||
-      member.covariantKeyword != null ||
-      fieldList.isConst) {
+  if (member.covariantKeyword != null && fieldList.isFinal) {
     return const _FieldToParameterFieldClassification.skip(
       DeclarationSkipReason.unsupportedFieldModifier,
     );
@@ -395,8 +402,11 @@ _FieldToParameterFieldClassification _classifyFieldToParameterField({
   return _FieldToParameterFieldClassification.field(
     _FieldToParameterField(
       declaration: member,
-      typeSource: _sourceFor(source, fieldList.type!),
+      typeSource: fieldList.type == null
+          ? 'dynamic'
+          : _sourceFor(source, fieldList.type!),
       declaringKeyword: fieldList.isFinal ? 'final' : 'var',
+      isCovariant: member.covariantKeyword != null,
       leadingCommentSource: commentMigration.source,
     ),
   );
@@ -418,12 +428,14 @@ class _FieldToParameterField {
     required this.declaration,
     required this.typeSource,
     required this.declaringKeyword,
+    required this.isCovariant,
     this.leadingCommentSource,
   });
 
   final FieldDeclaration declaration;
   final String typeSource;
   final String declaringKeyword;
+  final bool isCovariant;
   final String? leadingCommentSource;
 }
 
@@ -443,9 +455,11 @@ String _declaringParameterSource(
   _FieldToParameterField field,
   String fieldName, {
   String prefix = '',
+  bool includeCovariant = false,
 }) {
+  final covariantSource = includeCovariant ? 'covariant ' : '';
   final parameterSource =
-      '$prefix${field.declaringKeyword} ${field.typeSource} $fieldName';
+      '$prefix$covariantSource${field.declaringKeyword} ${field.typeSource} $fieldName';
   final commentSource = field.leadingCommentSource;
   if (commentSource == null) {
     return parameterSource;
@@ -456,9 +470,17 @@ String _declaringParameterSource(
 bool _isSimpleFieldFormalParameter(FieldFormalParameter parameter) {
   return parameter.documentationComment == null &&
       parameter.constFinalOrVarKeyword == null &&
-      parameter.covariantKeyword == null &&
-      parameter.type == null &&
-      parameter.functionTypedSuffix == null;
+      !(parameter.type != null && parameter.functionTypedSuffix != null);
+}
+
+int _fieldFormalReplacementStart(FieldFormalParameter parameter) {
+  if (parameter.covariantKeyword case final covariantKeyword?) {
+    return covariantKeyword.offset;
+  }
+  if (parameter.type case final type?) {
+    return type.offset;
+  }
+  return parameter.thisKeyword.offset;
 }
 
 Set<String> _fieldFormalParameterNames(FormalParameterList parameters) {
@@ -481,11 +503,9 @@ bool _allFieldVariablesMappedByFieldFormals(
 }
 
 bool _isSimpleRegularFormalParameter(RegularFormalParameter parameter) {
-  return parameter.metadata.isEmpty &&
-      parameter.documentationComment == null &&
+  return parameter.documentationComment == null &&
       parameter.constFinalOrVarKeyword == null &&
-      parameter.covariantKeyword == null &&
-      parameter.functionTypedSuffix == null;
+      parameter.covariantKeyword == null;
 }
 
 bool _isSimpleSuperFormalParameter(SuperFormalParameter parameter) {

@@ -4,16 +4,18 @@ ACT Dart Migrate emits deterministic text or JSON reports for the selected Migra
 
 With `--json`, stdout contains JSON only. Human diagnostics and unexpected internal-error details go to stderr.
 
+In the examples below, `<schemaVersion>` is the current report schema version (an integer) and `<toolVersion>` is the bundled tool version. Both are emitted by the CLI; this document does not pin their concrete values.
+
 ## Success Envelope
 
-Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, and schema version `3`:
+Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, plus `schemaVersion` and `toolVersion`:
 
 ```json
 {
   "ok": true,
   "migration": "primary-constructors",
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "root": "/absolute/target/package",
   "dryRun": false,
   "formatted": false,
@@ -70,8 +72,8 @@ The opt-in `--skip-super-constructor-initializers` workaround reports skipped cl
 ```json
 {
   "ok": true,
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "migrations": [
     {
       "id": "primary-constructors",
@@ -98,8 +100,8 @@ Failure JSON output has `ok: false` and an `error` object:
 {
   "ok": false,
   "migration": "primary-constructors",
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "error": {
     "code": "invalidRoot",
     "message": "Target package root does not exist or has no pubspec.yaml: example"
@@ -114,8 +116,8 @@ Root-level errors omit `migration` because no migration was selected:
 ```json
 {
   "ok": false,
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "error": {
     "code": "argumentError",
     "message": "Unknown Migration Subcommand."

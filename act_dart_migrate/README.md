@@ -101,7 +101,7 @@ This flag will be deprecated or removed once the Dart SDK fix is merged to stabl
 
 See [Migration Rules](doc/migration_rules.md) for the supported transforms, stable transform names, declaration skip reason codes, file and directory skip reason codes, and no-op behavior for `primary-constructors`.
 
-See [Report Contract](doc/report_contract.md) for schema version `3`, selected migration attribution, success and failure envelopes, stable error codes, exit codes, and deterministic report ordering.
+See [Report Contract](doc/report_contract.md) for schema version, selected migration attribution, success and failure envelopes, stable error codes, exit codes, and deterministic report ordering.
 
 See [Architecture Overview](doc/architecture.md) for the CLI pipeline, responsibility boundaries, shared internal core responsibilities, and migration-specific module responsibilities.
 

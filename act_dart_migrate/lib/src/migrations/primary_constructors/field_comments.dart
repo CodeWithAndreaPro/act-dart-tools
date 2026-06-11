@@ -8,7 +8,7 @@ _FieldCommentMigration _fieldCommentMigration({
   if (_hasFollowingFieldComment(source, bodyInfo, member)) {
     return const _FieldCommentMigration.ambiguous();
   }
-  if (_hasInlineFieldComment(source, member)) {
+  if (_hasInlineFieldComment(member)) {
     return const _FieldCommentMigration.ambiguous();
   }
 
@@ -159,12 +159,20 @@ bool _hasFollowingFieldComment(
       _leadingCommentTokens(nextMember).any(_isOrdinaryCommentToken);
 }
 
-bool _hasInlineFieldComment(String source, FieldDeclaration member) {
-  final fieldSource = source.substring(
-    member.firstTokenAfterCommentAndMetadata.offset,
-    member.end,
-  );
-  return _hasCommentMarker(fieldSource);
+bool _hasInlineFieldComment(FieldDeclaration member) {
+  final declarationStart = member.firstTokenAfterCommentAndMetadata.offset;
+  Token? token = member.firstTokenAfterCommentAndMetadata;
+  while (token != null && token.offset < member.end) {
+    CommentToken? comment = token.precedingComments;
+    while (comment != null) {
+      if (comment.offset >= declarationStart && comment.end <= member.end) {
+        return true;
+      }
+      comment = comment.next as CommentToken?;
+    }
+    token = token.next;
+  }
+  return false;
 }
 
 int _memberLeadingCommentOffset(ClassMember member) {

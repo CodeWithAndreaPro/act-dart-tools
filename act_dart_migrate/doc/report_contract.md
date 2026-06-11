@@ -63,6 +63,33 @@ Each `skippedDeclarations` entry has the same declaration fields plus a stable r
 
 The opt-in `--skip-super-constructor-initializers` workaround reports skipped class declarations with reason code `superConstructorInitializer` when a class primary-constructor migration would otherwise retain an explicit `super(...)` or `super.named(...)` initializer.
 
+## Command Discovery Envelope
+
+`dart run act_dart_migrate list --json` uses the same schema version and reports supported Migration Subcommands without selecting a Target Package:
+
+```json
+{
+  "ok": true,
+  "schemaVersion": 3,
+  "toolVersion": "0.3.0",
+  "migrations": [
+    {
+      "id": "primary-constructors",
+      "displayName": "Primary Constructors",
+      "status": "stable",
+      "targetPackageMinimumDartSdk": "3.12.0",
+      "targetPackageRequiredExperiments": ["primary-constructors"],
+      "supportedCommandSyntax": [
+        "dart run act_dart_migrate primary-constructors <target-package> --json"
+      ],
+      "description": "Migrate eligible classes and enhanced enums to Dart primary-constructor syntax, with extension type support for representation validation and safe body transforms."
+    }
+  ]
+}
+```
+
+The Target Package prerequisite fields describe the SDK and experiments required for migrated output. They do not describe the Dart SDK used to run the bundled `act_dart_migrate` tool.
+
 ## Failure Envelope
 
 Failure JSON output has `ok: false` and an `error` object:

@@ -28,8 +28,8 @@ class MigrationCommandMetadata {
     required this.id,
     required this.displayName,
     required this.status,
-    required this.minimumDartSdk,
-    required this.requiredExperiments,
+    required this.targetPackageMinimumDartSdk,
+    required this.targetPackageRequiredExperiments,
     required this.supportedCommandSyntax,
     required this.description,
   });
@@ -37,8 +37,8 @@ class MigrationCommandMetadata {
   final String id;
   final String displayName;
   final String status;
-  final String minimumDartSdk;
-  final List<String> requiredExperiments;
+  final String targetPackageMinimumDartSdk;
+  final List<String> targetPackageRequiredExperiments;
   final List<String> supportedCommandSyntax;
   final String description;
 
@@ -47,8 +47,8 @@ class MigrationCommandMetadata {
       'id': id,
       'displayName': displayName,
       'status': status,
-      'minimumDartSdk': minimumDartSdk,
-      'requiredExperiments': requiredExperiments,
+      'targetPackageMinimumDartSdk': targetPackageMinimumDartSdk,
+      'targetPackageRequiredExperiments': targetPackageRequiredExperiments,
       'supportedCommandSyntax': supportedCommandSyntax,
       'description': description,
     };

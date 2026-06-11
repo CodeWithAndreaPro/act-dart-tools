@@ -8,9 +8,9 @@ The migration is intentionally conservative: when a declaration cannot be migrat
 
 ## Requirements
 
-The package requires Dart SDK 3.12.0 or higher.
+The bundled `act_dart_migrate` tool runs with the Dart SDK constraint in `pubspec.yaml`, currently `^3.8.0`.
 
-Migrated primary-constructor output is experimental Dart syntax. Analyzer, formatting, running, and testing support for that syntax is configured and verified outside this CLI.
+Migrated primary-constructor output is experimental Dart syntax for Target Packages on Dart SDK 3.12.0 or higher. Analyzer, formatting, running, and testing support for that syntax is configured and verified outside this CLI.
 
 ## Before Using The Tool
 
@@ -70,7 +70,7 @@ dart run act_dart_migrate primary-constructors <target-package> --skip-super-con
 
 Running the executable without arguments prints concise usage and exits successfully. Root `--version` prints the package version without selecting a Migration Subcommand.
 
-`list --json` writes a machine-readable discovery response for supported Migration Subcommands without requiring a Target Package or running migration planning.
+`list --json` writes a machine-readable discovery response for supported Migration Subcommands without requiring a Target Package or running migration planning. Its `targetPackageMinimumDartSdk` and `targetPackageRequiredExperiments` fields describe Target Package prerequisites for migrated output, not the SDK used to run the bundled tool.
 
 The required `target-package` positional argument selects the Target package root. Use `.` to migrate the current working directory. The root must be a directory that contains a `pubspec.yaml`. Discovery scans non-generated Dart files under that root and reports generated files, nested packages, nested repositories or worktrees, and excluded transient directories separately.
 

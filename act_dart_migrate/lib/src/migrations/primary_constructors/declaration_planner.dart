@@ -163,6 +163,12 @@ class _TargetFileDeclarationPlanner {
     }
 
     final name = constructor.name;
+    if (name?.lexeme == 'new') {
+      return SourceEdit.replace(
+        SourceRange.fromStartEnd(start: typeName.offset, end: name!.end),
+        'new',
+      );
+    }
     final replacement = name == null ? 'new' : 'new ';
     final range = SourceRange.fromStartEnd(
       start: typeName.offset,
@@ -176,6 +182,15 @@ class _TargetFileDeclarationPlanner {
     SimpleIdentifier typeName,
   ) {
     final name = constructor.name;
+    if (name?.lexeme == 'new') {
+      return SourceEdit.replace(
+        SourceRange.fromStartEnd(
+          start: constructor.factoryKeyword!.end,
+          end: name!.end,
+        ),
+        '',
+      );
+    }
     final range = name == null
         ? SourceRange.fromStartEnd(
             start: constructor.factoryKeyword!.end,

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:act_dart_migrate/src/core/discovery.dart';
-import 'package:act_dart_migrate/src/core/report_contract.dart';
 import 'package:act_dart_migrate/src/migrations/primary_constructors/primary_constructors.dart';
 import 'package:test/test.dart';
 
@@ -52,8 +51,8 @@ void main() {
 
     _expectAllPresent(reportContract, [
       '"migration": "$primaryConstructorsMigration"',
-      '"schemaVersion": $schemaVersion',
-      'schema version `$schemaVersion`',
+      '"schemaVersion": <schemaVersion>',
+      '"toolVersion": "<toolVersion>"',
       'Root-level errors omit `migration`',
     ], 'report envelope vocabulary');
     _expectAllPresent(reportContract, [

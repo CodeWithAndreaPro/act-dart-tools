@@ -8,6 +8,9 @@ _FieldCommentMigration _fieldCommentMigration({
   if (_hasFollowingFieldComment(source, bodyInfo, member)) {
     return const _FieldCommentMigration.ambiguous();
   }
+  if (_hasInlineFieldComment(member)) {
+    return const _FieldCommentMigration.ambiguous();
+  }
 
   final comments = _leadingCommentTokens(member);
   if (comments.isEmpty) {
@@ -154,6 +157,22 @@ bool _hasFollowingFieldComment(
   }
   return nextMember != null &&
       _leadingCommentTokens(nextMember).any(_isOrdinaryCommentToken);
+}
+
+bool _hasInlineFieldComment(FieldDeclaration member) {
+  final declarationStart = member.firstTokenAfterCommentAndMetadata.offset;
+  Token? token = member.firstTokenAfterCommentAndMetadata;
+  while (token != null && token.offset < member.end) {
+    CommentToken? comment = token.precedingComments;
+    while (comment != null) {
+      if (comment.offset >= declarationStart && comment.end <= member.end) {
+        return true;
+      }
+      comment = comment.next as CommentToken?;
+    }
+    token = token.next;
+  }
+  return false;
 }
 
 int _memberLeadingCommentOffset(ClassMember member) {

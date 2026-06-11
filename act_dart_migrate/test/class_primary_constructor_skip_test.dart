@@ -301,6 +301,39 @@ class InterleavedFieldComment {
 }
 ''',
       ),
+      (
+        name: 'inline field block comment before variable',
+        declarationName: 'InlineFieldBlockComment',
+        source: '''
+class InlineFieldBlockComment {
+  final int /* stable */ value;
+
+  InlineFieldBlockComment(this.value);
+}
+''',
+      ),
+      (
+        name: 'inline field block comment before type',
+        declarationName: 'InlineFieldBlockCommentBeforeType',
+        source: '''
+class InlineFieldBlockCommentBeforeType {
+  final /* stable */ int value;
+
+  InlineFieldBlockCommentBeforeType(this.value);
+}
+''',
+      ),
+      (
+        name: 'inline field block comment before semicolon',
+        declarationName: 'InlineFieldBlockCommentBeforeSemicolon',
+        source: '''
+class InlineFieldBlockCommentBeforeSemicolon {
+  final int value /* stable */;
+
+  InlineFieldBlockCommentBeforeSemicolon(this.value);
+}
+''',
+      ),
     ]) {
       test('skips ${scenario.name} precisely', () async {
         await expectSinglePrimaryConstructorSkip(
@@ -765,6 +798,137 @@ class AppDatabase extends _\$AppDatabase {
   new forTesting(super.e);
 }
 ''');
+      },
+    );
+
+    test(
+      'rewrites retained generative .new constructors after primary skip',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
+class Value {
+  Value.new();
+
+  Value.named();
+}
+''';
+        writeFile(root, 'lib/value.dart', originalSource);
+
+        final result = await runCliPrimaryConstructors(root.path);
+
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], ['lib/value.dart']);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/value.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Value.new',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('Value.new'),
+          },
+          {
+            'path': 'lib/value.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Value.named',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('Value.named'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/value.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Value',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+            'reason': 'multipleConstructors',
+            'message': 'Multiple generative constructors are not supported.',
+          },
+        ]);
+        expect(decoded['transformCounts'], {'constructorShorthand': 2});
+        expect(decoded['skipReasonCounts'], {'multipleConstructors': 1});
+        expect(await formattedFile(root, 'lib/value.dart'), '''
+class Value {
+  new();
+
+  new named();
+}
+''');
+        await expectAnalyzerClean(root);
+      },
+    );
+
+    test(
+      'rewrites retained factory .new constructors after primary skip',
+      () async {
+        final root = await createPackageRoot();
+        addTearDown(() => root.deleteSync(recursive: true));
+        const originalSource = '''
+class Value {
+  Value.named();
+
+  Value.other();
+
+  factory Value.new() => Value.named();
+}
+''';
+        writeFile(root, 'lib/factory_value.dart', originalSource);
+
+        final result = await runCliPrimaryConstructors(root.path);
+
+        expect(result.exitCode, exitSuccess);
+        expect(result.stderr, isEmpty);
+        final decoded = jsonDecode(result.stdout) as Map<String, Object?>;
+        expect(decoded['changedFiles'], ['lib/factory_value.dart']);
+        expect(decoded['migratedDeclarations'], [
+          {
+            'path': 'lib/factory_value.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Value.named',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('Value.named'),
+          },
+          {
+            'path': 'lib/factory_value.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Value.other',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('Value.other'),
+          },
+          {
+            'path': 'lib/factory_value.dart',
+            'declarationKind': 'constructor',
+            'declarationName': 'Value.new',
+            'transform': 'constructorShorthand',
+            'offset': originalSource.indexOf('factory Value.new'),
+          },
+        ]);
+        expect(decoded['skippedDeclarations'], [
+          {
+            'path': 'lib/factory_value.dart',
+            'declarationKind': 'class',
+            'declarationName': 'Value',
+            'transform': 'primaryConstructor',
+            'offset': 0,
+            'reason': 'multipleConstructors',
+            'message': 'Multiple generative constructors are not supported.',
+          },
+        ]);
+        expect(decoded['transformCounts'], {'constructorShorthand': 3});
+        expect(decoded['skipReasonCounts'], {'multipleConstructors': 1});
+        expect(await formattedFile(root, 'lib/factory_value.dart'), '''
+class Value {
+  new named();
+
+  new other();
+
+  factory() => Value.named();
+}
+''');
+        await expectAnalyzerClean(root);
       },
     );
 

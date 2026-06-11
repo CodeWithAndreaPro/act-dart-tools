@@ -4,16 +4,18 @@ ACT Dart Migrate emits deterministic text or JSON reports for the selected Migra
 
 With `--json`, stdout contains JSON only. Human diagnostics and unexpected internal-error details go to stderr.
 
+In the examples below, `<schemaVersion>` is the current report schema version (an integer) and `<toolVersion>` is the bundled tool version. Both are emitted by the CLI; this document does not pin their concrete values.
+
 ## Success Envelope
 
-Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, and schema version `3`:
+Successful JSON output has `ok: true`, a top-level `migration` field naming the selected Migration Subcommand, plus `schemaVersion` and `toolVersion`:
 
 ```json
 {
   "ok": true,
   "migration": "primary-constructors",
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "root": "/absolute/target/package",
   "dryRun": false,
   "formatted": false,
@@ -63,6 +65,33 @@ Each `skippedDeclarations` entry has the same declaration fields plus a stable r
 
 The opt-in `--skip-super-constructor-initializers` workaround reports skipped class declarations with reason code `superConstructorInitializer` when a class primary-constructor migration would otherwise retain an explicit `super(...)` or `super.named(...)` initializer.
 
+## Command Discovery Envelope
+
+`dart run act_dart_migrate list --json` uses the same schema version and reports supported Migration Subcommands without selecting a Target Package:
+
+```json
+{
+  "ok": true,
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
+  "migrations": [
+    {
+      "id": "primary-constructors",
+      "displayName": "Primary Constructors",
+      "status": "stable",
+      "targetPackageMinimumDartSdk": "3.12.0",
+      "targetPackageRequiredExperiments": ["primary-constructors"],
+      "supportedCommandSyntax": [
+        "dart run act_dart_migrate primary-constructors <target-package> --json"
+      ],
+      "description": "Migrate eligible classes and enhanced enums to Dart primary-constructor syntax, with extension type support for representation validation and safe body transforms."
+    }
+  ]
+}
+```
+
+The Target Package prerequisite fields describe the SDK and experiments required for migrated output. They do not describe the Dart SDK used to run the bundled `act_dart_migrate` tool.
+
 ## Failure Envelope
 
 Failure JSON output has `ok: false` and an `error` object:
@@ -71,8 +100,8 @@ Failure JSON output has `ok: false` and an `error` object:
 {
   "ok": false,
   "migration": "primary-constructors",
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "error": {
     "code": "invalidRoot",
     "message": "Target package root does not exist or has no pubspec.yaml: example"
@@ -87,8 +116,8 @@ Root-level errors omit `migration` because no migration was selected:
 ```json
 {
   "ok": false,
-  "schemaVersion": 3,
-  "toolVersion": "0.3.0",
+  "schemaVersion": <schemaVersion>,
+  "toolVersion": "<toolVersion>",
   "error": {
     "code": "argumentError",
     "message": "Unknown Migration Subcommand."

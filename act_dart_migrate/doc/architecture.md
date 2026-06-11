@@ -45,7 +45,7 @@ Migration-specific modules own behavior for one migration language feature:
 - Migration-specific validation strategy.
 - Fixture coverage for supported and skipped source shapes.
 
-For `primary-constructors`, the migration module owns class and enhanced-enum primary-constructor rewrites, constructor declaration shorthand rewrites, empty class-body collapse, and the stable primary-constructor transform and skip reason codes.
+For `primary-constructors`, the migration module owns class and enhanced-enum primary-constructor rewrites, extension type representation-parameter validation, constructor declaration shorthand rewrites, empty class-body collapse, and the stable primary-constructor transform and skip reason codes.
 
 ## Pipeline
 
@@ -91,7 +91,7 @@ This orchestration is the seam between CLI argument handling and migration plann
 
 ## Migration Planning
 
-For `primary-constructors`, the planner parses each discovered Dart file with the primary-constructor experiment enabled, then considers top-level class and enhanced-enum declarations.
+For `primary-constructors`, the planner parses each discovered Dart file with the primary-constructor experiment enabled, then routes top-level classes, mixin classes, enums, extension types, extensions, and mixins through the applicable primary-constructor, constructor-shorthand, and empty-body planning paths.
 
 Planning is conservative. It creates source edits only for supported shapes and records skipped declarations with stable reason codes for unsupported or unsafe shapes. Class primary-constructor migration, enhanced-enum primary-constructor migration, constructor shorthand, and empty class-body collapse are planned through the same file-level path so their edits and report facts are combined deterministically.
 

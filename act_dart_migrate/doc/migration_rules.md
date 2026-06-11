@@ -12,11 +12,11 @@ The public transform names are:
 - `constructorShorthand`
 - `emptyClassBody`
 
-`primaryConstructor` covers class primary-constructor migration, enhanced-enum primary-constructor migration, and extension type representation-parameter validation. For eligible classes and enhanced enums, it moves ordinary constructor boilerplate into Dart experimental primary-constructor syntax while preserving the declaration shape that matters to callers: modifiers, type parameters, bounds, clauses, constructor names, parameter names, nullability, default values, `required`, private declaring parameter names, and simple `super` parameters.
+`primaryConstructor` covers class primary-constructor migration, enhanced-enum primary-constructor migration, and extension type representation-parameter validation. For eligible classes and enhanced enums, it moves ordinary constructor boilerplate into Dart experimental primary-constructor syntax while preserving the declaration shape that matters to callers: modifiers, type parameters, bounds, clauses, unnamed, named, and `.new` constructor forms, parameter names, nullability, default values, `required`, private declaring parameter names, and simple `super` parameters.
 
 The selected primary-constructor target may be unnamed, named, or `.new` when there is exactly one non-redirecting generative constructor that can be migrated safely. Retained redirecting constructors can remain in the body and be rewritten to constructor shorthand.
 
-Supported parameter shapes include mapped field-formal parameters, typed field formals whose explicit type matches the field type, function-typed field formals whose explicit field declaration type can be copied to a declaring parameter, simple pass-through parameters, simple `super` parameters, optional positional parameters, named parameters, defaults, and `required`. Fields with implicit types are emitted as explicit `dynamic` declaring parameters when otherwise safe. Mutable covariant fields can become `covariant var` declaring parameters.
+Supported parameter shapes include mapped field-formal parameters, typed field formals whose explicit type matches the field type, function-typed field formals whose explicit field declaration type can be copied to a declaring parameter, simple pass-through parameters, simple `super` parameters, optional positional parameters, named parameters, defaults, and `required`. Fields with implicit types are emitted as explicit `dynamic` declaring parameters when otherwise safe. Mutable covariant fields can become `covariant var` declaring parameters. Multi-variable field declarations are supported only when every variable in the declaration maps to a safe field-formal parameter and the declaration has no comments that would need to be split across parameters; partial mappings, initialized variables, unsafe field shapes, or commented multi-variable declarations are skipped.
 
 Class and enhanced-enum primary-constructor migration may also move safe parameter-only field initializer assignments to field declarations. Constructor assertions may be retained in a primary constructor body when doing so preserves their order and meaning. Class migrations may also retain explicit super constructor initializers such as `super(...)` and `super.named(...)`.
 
@@ -39,7 +39,7 @@ Enhanced-enum primary-constructor migration preserves enum value argument shape 
 
 Extension type declarations already carry their primary constructor in the declaration header. The migration treats valid extension type primary constructors as supported fixed-point input, preserves omitted or explicit `final` representation parameters unchanged, and validates the representation parameter before applying safe extension-type body transforms. Extension types may retain additional body constructors; those constructors are not treated as a `multipleConstructors` primary-constructor skip.
 
-`constructorShorthand` covers eligible generative and factory constructors that stay in class, enhanced-enum, or extension-type bodies but can be rewritten to constructor declaration shorthand. Primary-constructor migration is preferred when it is safe. Generative constructors use `new` shorthand, for example `C.name()` becomes `new name()`. Factory constructors remove the enclosing type name, for example `factory C.name()` becomes `factory name()` and `factory C()` becomes `factory()`. `const`, `external`, metadata, documentation comments, parameters, initializer lists, bodies, and redirected factory targets are preserved.
+`constructorShorthand` covers eligible generative and factory constructors that stay in class, enhanced-enum, or extension-type bodies but can be rewritten to constructor declaration shorthand. Primary-constructor migration is preferred when it is safe. Generative constructors use `new` shorthand, for example `C.name()` becomes `new name()`, `C()` becomes `new()`, and `C.new()` also becomes `new()`. Factory constructors remove the enclosing type name, for example `factory C.name()` becomes `factory name()`, `factory C()` becomes `factory()`, and `factory C.new()` becomes `factory()`. `const`, `external`, metadata, documentation comments, parameters, initializer lists, bodies, and redirected factory targets are preserved.
 
 Constructor shorthand can still run after a primary-constructor skip when the skip is caused by constructor shape or metadata that does not make shorthand unsafe, such as `multipleConstructors`, `externalConstructor`, `namedConstructor`, `constructorMetadata`, `constructorComment`, or `parameterMetadata`. Extension type representation-parameter skips suppress constructor-shorthand and empty-body edits for that extension type declaration in the same run.
 
@@ -60,7 +60,7 @@ Declaration skip reasons are reported on skipped declaration records. They are g
 Constructor shape:
 
 - `multipleConstructors`: multiple non-redirecting generative constructors make one primary-constructor target ambiguous.
-- `namedConstructor`: a named generative constructor shape is not supported as a primary-constructor target.
+- `namedConstructor`: stable reserved reason code for named generative constructor shapes that are not supported as primary-constructor targets. Current class and enhanced-enum named constructors, including `.new`, are supported when they are the single safe non-redirecting generative target and do not conflict with retained members.
 - `mixinClassPrimaryConstructor`: non-trivial mixin class primary constructors are not migrated.
 - `primaryConstructorConflict`: the generated primary constructor name would conflict with a retained body member.
 - `extensionTypeRepresentationParameter`: an extension type primary constructor does not have exactly one supported non-`var` representation parameter.
@@ -85,7 +85,7 @@ Metadata and comments that would move or disappear:
 - `constructorComment`: constructor comments are not moved to primary constructors.
 - `parameterMetadata`: parameter metadata is not moved to declaring parameters.
 - `fieldMetadata`: field metadata is not moved to declaring parameters.
-- `fieldComment`: ambiguous field comments are not moved to declaring parameters.
+- `fieldComment`: ambiguous field comments, including inline field-declaration comments that cannot be safely moved, are not moved to declaring parameters.
 - `classBodyComment`: empty declaration bodies with comments are not collapsed away.
 
 Field mapping and field declaration shape:
@@ -96,7 +96,7 @@ Field mapping and field declaration shape:
 - `externalField`: external fields cannot become declaring parameters.
 - `initializedField`: fields that already have initializers are not converted to declaring parameters.
 - `implicitFieldType`: stable reserved reason code for implicit field-type cases. Current safe implicit fields are emitted as explicit `dynamic` declaring parameters.
-- `multipleFieldVariables`: multi-variable field declarations are not converted to declaring parameters.
+- `multipleFieldVariables`: partial or otherwise unsafe multi-variable field declarations are not converted to declaring parameters. All-mapped safe multi-variable field declarations can be converted.
 - `unsupportedFieldModifier`: a field modifier is not supported for declaring parameters.
 - `unsupportedParameterShape`: a constructor parameter shape is not supported.
 

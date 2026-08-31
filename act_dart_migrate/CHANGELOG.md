@@ -5,7 +5,6 @@
 - Added safe migration of `.new` constructor shorthand for generative and factory constructors that remain in class, enhanced-enum, or extension-type bodies.
 - Treated inline field-declaration comments as ambiguous and reported them with the `fieldComment` skip reason to preserve conservative migration behavior.
 - Documented the command-discovery envelope, target-package SDK and experiment requirements, and stopped pinning concrete schema and tool versions in the report contract docs.
-- Updated primary-constructor Target Package requirements for Dart 3.13 and removed the obsolete experiment requirement.
 
 ## 0.3.0
 

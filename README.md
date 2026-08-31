@@ -2,19 +2,17 @@
 
 A collection of command line tools for Dart development.
 
-## Tools
+## act_dart_migrate
 
-### act_dart_migrate
-
-Bundled ACT tooling for deterministic Dart migrations.
+A CLI for deterministic Dart migrations.
 
 This package provides one Dart executable with migration subcommands.
 
-#### primary-constructors
+### primary-constructors
 
 `primary-constructors` can be used to migrate eligible Dart classes and enhanced enums from ordinary constructor boilerplate to the new [primary constructor syntax](https://dart.dev/language/primary-constructors).
 
-**Example usage:**
+Example usage:
 
 ```sh
 dart run act_dart_migrate primary-constructors <target-package>

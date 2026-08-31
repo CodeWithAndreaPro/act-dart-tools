@@ -2,7 +2,7 @@
 
 Bundled ACT tooling for deterministic Dart migrations.
 
-This package provides one Dart executable, `act_dart_migrate`, with Migration Subcommands. The first Migration Subcommand is `primary-constructors`, which migrates eligible Dart classes and enhanced enums from ordinary constructor boilerplate to Dart experimental [primary-constructor](https://dart.dev/language/primary-constructors) syntax.
+This package provides one Dart executable, `act_dart_migrate`, with Migration Subcommands. The first Migration Subcommand is `primary-constructors`, which migrates eligible Dart classes and enhanced enums from ordinary constructor boilerplate to Dart [primary-constructor](https://dart.dev/language/primary-constructors) syntax.
 
 The migration is intentionally conservative: when a declaration cannot be migrated safely, the CLI leaves the source unchanged and reports a precise skip reason.
 
@@ -10,7 +10,7 @@ The migration is intentionally conservative: when a declaration cannot be migrat
 
 The bundled `act_dart_migrate` tool runs with the Dart SDK constraint in `pubspec.yaml`, currently `^3.8.0`.
 
-Migrated primary-constructor output is experimental Dart syntax for Target Packages on Dart SDK 3.12.0 or higher. Analyzer, formatting, running, and testing support for that syntax is configured and verified outside this CLI.
+Migrated primary-constructor output requires Target Packages on Dart SDK 3.13.0 or higher. Formatting, analysis, running, and testing are performed outside this CLI.
 
 ## Before Using The Tool
 
@@ -18,38 +18,11 @@ These prerequisites are specific to the `primary-constructors` Migration Subcomm
 
 Run the migration on a Target Package that already compiles without errors.
 
-Set the Target Package Dart SDK constraint to 3.12 or higher in `pubspec.yaml`:
+Set the Target Package Dart SDK constraint to 3.13 or higher in `pubspec.yaml`:
 
 ```yaml
 environment:
-  sdk: ^3.12.0
-```
-
-Enable the `primary-constructors` experiment in the Target Package `analysis_options.yaml` file:
-
-```yaml
-analyzer:
-  enable-experiment:
-    - primary-constructors
-```
-
-Analyzer, run, test, and format commands that process migrated source need the primary-constructor experiment flag:
-
-```bash
-flutter run --enable-experiment=primary-constructors
-flutter test --enable-experiment=primary-constructors
-dart format --enable-experiment=primary-constructors <changed-dart-files>
-```
-
-Each relevant `.vscode/launch.json` configuration should also contain the `--enable-experiment=primary-constructors` flag:
-
-```json
-{
-  "name": "example_app",
-  "request": "launch",
-  "type": "dart",
-  "args": ["--enable-experiment=primary-constructors"]
-}
+  sdk: ^3.13.0
 ```
 
 Before running the migration, fix analyzer errors and warnings in the Target Package. Some lint-based warnings can be fixed with `dart fix --apply`; others need manual changes.
@@ -111,13 +84,13 @@ At a high level, the CLI supports conservative primary-constructor migration for
 
 The CLI owns discovery, conservative migration planning, source-edit validation, parse validation, file writes, and report generation. It does not run `dart format`, `dart analyze`, `dart test`, `flutter analyze`, `flutter test`, `pub get`, or git commands.
 
-Formatting is external, so the migration executable does not bundle a formatter dependency, mutate Target package setup, or hide formatter failures inside the migration report. The ACT skill reads `changedFiles` from the JSON report and formats only those Dart files with the resolved Dart runner and the primary-constructor formatter flag:
+Formatting is external, so the migration executable does not bundle a formatter dependency, mutate Target Package setup, or hide formatter failures inside the migration report. The ACT skill reads `changedFiles` from the JSON report and formats only those Dart files with the resolved Dart runner:
 
 ```bash
-dart format --enable-experiment=primary-constructors <changed-dart-files>
+dart format <changed-dart-files>
 ```
 
-The ACT skill owns user workflow verification around the CLI. It verifies target SDK/toolchain and analyzer experiment prerequisites, runs pre-migration analysis, bootstraps only the bundled CLI package, invokes the CLI with `--json`, formats changed files externally, then runs post-migration analysis and tests. For Flutter Target packages, tests use the primary-constructor experiment flag and avoid automatic target-package pub get. For pure Dart Target packages, tests use the resolved Dart runner with the primary-constructor experiment flag.
+The ACT skill owns user workflow verification around the CLI. It verifies the target SDK and toolchain prerequisites, runs pre-migration analysis, bootstraps only the bundled CLI package, invokes the CLI with `--json`, formats changed files externally, then runs post-migration analysis and tests. For Flutter Target Packages, tests avoid automatic Target Package pub get. For pure Dart Target Packages, tests use the resolved Dart runner.
 
 ## Maintainer Notes
 

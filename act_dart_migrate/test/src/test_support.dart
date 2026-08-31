@@ -14,16 +14,9 @@ Future<Directory> createPackageRoot() async {
     '''
 name: target_package
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 ''',
   );
-  File(
-    '${root.path}${Platform.pathSeparator}analysis_options.yaml',
-  ).writeAsStringSync('''
-analyzer:
-  enable-experiment:
-    - primary-constructors
-''');
   return root;
 }
 
@@ -153,7 +146,6 @@ Future<String> formattedFile(Directory root, String relativePath) async {
   );
   final result = await Process.run(Platform.resolvedExecutable, [
     'format',
-    '--enable-experiment=primary-constructors',
     file.path,
   ]);
   expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');

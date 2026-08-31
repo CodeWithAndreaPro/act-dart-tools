@@ -8,6 +8,16 @@ A collection of command line tools for Dart development.
 
 Bundled ACT tooling for deterministic Dart migrations.
 
-This package provides one Dart executable with Migration Subcommands. The first Migration Subcommand migrates eligible Dart classes and enhanced enums from ordinary constructor boilerplate to Dart experimental primary-constructor syntax. It is intentionally conservative: when a declaration cannot be migrated safely, the tool leaves the source unchanged and reports a precise skip reason.
+This package provides one Dart executable with migration subcommands.
 
-See [`act_dart_migrate/README.md`](act_dart_migrate/README.md) for CLI usage and package-local documentation.
+#### primary-constructors
+
+`primary-constructors` can be used to migrate eligible Dart classes and enhanced enums from ordinary constructor boilerplate to the new [primary constructor syntax](https://dart.dev/language/primary-constructors).
+
+**Example usage:**
+
+```sh
+dart run act_dart_migrate primary-constructors <target-package>
+```
+
+See [`act_dart_migrate/README.md`](act_dart_migrate/README.md) for detailed CLI usage and package-local documentation.

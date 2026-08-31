@@ -1,3 +1,8 @@
+## 0.4.0
+
+- Updated primary-constructor Target Package requirements for Dart 3.13 and removed the obsolete experiment requirement.
+- Changed license to MIT.
+
 ## 0.3.1
 
 - Bumped JSON report schema version to `4`.

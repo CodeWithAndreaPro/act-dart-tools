@@ -79,8 +79,8 @@ The opt-in `--skip-super-constructor-initializers` workaround reports skipped cl
       "id": "primary-constructors",
       "displayName": "Primary Constructors",
       "status": "stable",
-      "targetPackageMinimumDartSdk": "3.12.0",
-      "targetPackageRequiredExperiments": ["primary-constructors"],
+      "targetPackageMinimumDartSdk": "3.13.0",
+      "targetPackageRequiredExperiments": [],
       "supportedCommandSyntax": [
         "dart run act_dart_migrate primary-constructors <target-package> --json"
       ],

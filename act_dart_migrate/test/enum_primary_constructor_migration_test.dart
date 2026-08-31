@@ -32,7 +32,7 @@ enum HttpStatus {
       expect(await formattedFile(root, 'lib/status.dart'), '''
 enum HttpStatus(final int code) {
   ok(200),
-  notFound(404);
+  notFound(404),
 }
 ''');
     });
@@ -62,7 +62,7 @@ enum SeverityProbe {
       expect(await formattedFile(root, 'lib/severity.dart'), '''
 enum SeverityProbe([final int level = 1]) {
   low(),
-  high(2);
+  high(2),
 }
 ''');
     });
@@ -90,7 +90,7 @@ enum EnumMultiVariableProbe {
       );
       expect(await formattedFile(root, 'lib/enum_multi_variable.dart'), '''
 enum EnumMultiVariableProbe(final int code, final int weight) {
-  one(1, 10);
+  one(1, 10),
 }
 ''');
     });
@@ -120,7 +120,7 @@ enum ButtonSize {
       expect(await formattedFile(root, 'lib/button_size.dart'), '''
 enum ButtonSize({required final String label}) {
   small(label: 'Small'),
-  large(label: 'Large');
+  large(label: 'Large'),
 }
 ''');
     });
@@ -152,7 +152,7 @@ enum WireStatus {
         expect(await formattedFile(root, 'lib/wire_status.dart'), '''
 enum WireStatus.code(final int code) {
   ok.code(200),
-  notFound.code(404);
+  notFound.code(404),
 }
 ''');
         await expectAnalyzerClean(root);
@@ -190,7 +190,7 @@ enum TokenKind(
   final bool terminal = false,
 }) {
   keyword('keyword', index: 0, terminal: true),
-  identifier('identifier', index: 1);
+  identifier('identifier', index: 1),
 }
 ''');
     });

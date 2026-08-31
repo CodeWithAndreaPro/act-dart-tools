@@ -31,8 +31,8 @@ const primaryConstructorsCommandMetadata = MigrationCommandMetadata(
   id: primaryConstructorsMigration,
   displayName: 'Primary Constructors',
   status: 'stable',
-  targetPackageMinimumDartSdk: '3.12.0',
-  targetPackageRequiredExperiments: ['primary-constructors'],
+  targetPackageMinimumDartSdk: '3.13.0',
+  targetPackageRequiredExperiments: [],
   supportedCommandSyntax: [
     'dart run act_dart_migrate primary-constructors <target-package> --json',
     'dart run act_dart_migrate primary-constructors <target-package> --dry-run',

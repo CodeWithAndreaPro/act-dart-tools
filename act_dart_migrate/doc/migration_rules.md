@@ -12,7 +12,7 @@ The public transform names are:
 - `constructorShorthand`
 - `emptyClassBody`
 
-`primaryConstructor` covers class primary-constructor migration, enhanced-enum primary-constructor migration, and extension type representation-parameter validation. For eligible classes and enhanced enums, it moves ordinary constructor boilerplate into Dart experimental primary-constructor syntax while preserving the declaration shape that matters to callers: modifiers, type parameters, bounds, clauses, unnamed, named, and `.new` constructor forms, parameter names, nullability, default values, `required`, private declaring parameter names, and simple `super` parameters.
+`primaryConstructor` covers class primary-constructor migration, enhanced-enum primary-constructor migration, and extension type representation-parameter validation. For eligible classes and enhanced enums, it moves ordinary constructor boilerplate into Dart primary-constructor syntax while preserving the declaration shape that matters to callers: modifiers, type parameters, bounds, clauses, unnamed, named, and `.new` constructor forms, parameter names, nullability, default values, `required`, private declaring parameter names, and simple `super` parameters.
 
 The selected primary-constructor target may be unnamed, named, or `.new` when there is exactly one non-redirecting generative constructor that can be migrated safely. Retained redirecting constructors can remain in the body and be rewritten to constructor shorthand.
 

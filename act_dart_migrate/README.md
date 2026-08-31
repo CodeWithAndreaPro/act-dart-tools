@@ -82,15 +82,18 @@ At a high level, the CLI supports conservative primary-constructor migration for
 
 ## Formatting And Verification
 
-The CLI owns discovery, conservative migration planning, source-edit validation, parse validation, file writes, and report generation. It does not run `dart format`, `dart analyze`, `dart test`, `flutter analyze`, `flutter test`, `pub get`, or git commands.
+The CLI owns discovery, conservative migration planning, source-edit validation, parse validation, file writes, and report generation. It does not run formatting, analysis, tests, dependency resolution, or git commands.
 
-Formatting is external, so the migration executable does not bundle a formatter dependency, mutate Target Package setup, or hide formatter failures inside the migration report. The ACT skill reads `changedFiles` from the JSON report and formats only those Dart files with the resolved Dart runner:
+Formatting is external, so the migration executable does not bundle a formatter dependency, mutate Target Package setup, or hide formatter failures inside the migration report.
+
+As such, this is the recommended usage:
 
 ```bash
-dart format <changed-dart-files>
+dart run act_dart_migrate primary-constructors <target-package>
+dart format <target-package>
 ```
 
-The ACT skill owns user workflow verification around the CLI. It verifies the target SDK and toolchain prerequisites, runs pre-migration analysis, bootstraps only the bundled CLI package, invokes the CLI with `--json`, formats changed files externally, then runs post-migration analysis and tests. For Flutter Target Packages, tests avoid automatic Target Package pub get. For pure Dart Target Packages, tests use the resolved Dart runner.
+Analysis and tests are also external responsibilities.
 
 ## Maintainer Notes
 

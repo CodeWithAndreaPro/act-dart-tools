@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:act_dart_migrate/src/core/exit_codes.dart';
-import 'package:act_dart_migrate/src/migrations/primary_constructors/primary_constructors.dart';
 import 'package:test/test.dart';
 
 import 'src/test_support.dart';
@@ -1337,86 +1336,6 @@ class Base(final Object value);
         message:
             'Moving initializer field assignments would change initializer evaluation order.',
       );
-    });
-
-    test(
-      'flag skips retained unnamed super constructor initializers',
-      () async {
-        const originalSource = '''
-class Button extends Widget {
-  final String label;
-
-  Button(this.label) : super(label);
-}
-
-class Widget(Object label);
-''';
-
-        await expectSinglePrimaryConstructorSkip(
-          relativePath: 'lib/button.dart',
-          originalSource: originalSource,
-          declarationName: 'Button',
-          reason: DeclarationSkipReason.superConstructorInitializer.code,
-          message: DeclarationSkipReason.superConstructorInitializer.message,
-          extraArguments: [
-            '--$primaryConstructorsSkipSuperConstructorInitializersFlag',
-          ],
-        );
-      },
-    );
-
-    test('flag skips retained named super constructor initializers', () async {
-      const originalSource = '''
-class NamedSuperInitializerProbe extends ParentProbe {
-  final String id;
-
-  NamedSuperInitializerProbe(this.id) : super.named();
-}
-''';
-
-      await expectSinglePrimaryConstructorSkip(
-        relativePath: 'lib/named_super.dart',
-        originalSource: originalSource,
-        declarationName: 'NamedSuperInitializerProbe',
-        reason: DeclarationSkipReason.superConstructorInitializer.code,
-        message: DeclarationSkipReason.superConstructorInitializer.message,
-        extraArguments: [
-          '--$primaryConstructorsSkipSuperConstructorInitializersFlag',
-        ],
-      );
-    });
-
-    test('flag does not skip simple super parameters', () async {
-      final root = await createPackageRoot();
-      addTearDown(() => root.deleteSync(recursive: true));
-      writeFile(root, 'lib/child.dart', '''
-class Child extends Parent {
-  const Child({super.key, required this.label});
-
-  final String label;
-}
-
-class const Parent({Object? key});
-''');
-
-      final result = await runCliPrimaryConstructors(
-        root.path,
-        extraArguments: [
-          '--$primaryConstructorsSkipSuperConstructorInitializersFlag',
-        ],
-      );
-
-      expectSinglePrimaryConstructorMigration(
-        result,
-        path: 'lib/child.dart',
-        declarationName: 'Child',
-        reportsEmptyClassBody: true,
-      );
-      expect(await formattedFile(root, 'lib/child.dart'), '''
-class const Child({super.key, required final String label}) extends Parent;
-
-class const Parent({Object? key});
-''');
     });
 
     test('skips assignment-in-body field initialization precisely', () async {

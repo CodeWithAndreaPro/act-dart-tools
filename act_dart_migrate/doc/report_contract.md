@@ -63,8 +63,6 @@ Each `skippedDeclarations` entry has the same declaration fields plus a stable r
 
 `transformCounts` counts migrated declarations by transform kind. `skipReasonCounts` combines declaration, skipped-file, and skipped-directory reason counts. Report arrays and count maps are deterministic.
 
-The opt-in `--skip-super-constructor-initializers` workaround reports skipped class declarations with reason code `superConstructorInitializer` when a class primary-constructor migration would otherwise retain an explicit `super(...)` or `super.named(...)` initializer.
-
 ## Command Discovery Envelope
 
 `dart run act_dart_migrate list --json` uses the same schema version and reports supported Migration Subcommands without selecting a Target Package:

@@ -19,8 +19,6 @@ void main() {
           '<target-package> --dry-run',
       'dart run $_packageName $primaryConstructorsMigration '
           '<target-package> --include-skipped',
-      'dart run $_packageName $primaryConstructorsMigration '
-          '<target-package> --skip-super-constructor-initializers',
     ], 'command examples');
   });
 

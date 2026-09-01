@@ -4,13 +4,11 @@ class _TargetFileDeclarationPlanner {
   const _TargetFileDeclarationPlanner({
     required this.targetFile,
     required this.source,
-    required this.skipSuperConstructorInitializers,
     required this.parseSource,
   });
 
   final TargetDartFile targetFile;
   final String source;
-  final bool skipSuperConstructorInitializers;
   final ParseTargetDartSource parseSource;
 
   _PlannedFileMigration? plan() {
@@ -250,7 +248,6 @@ class _TargetFileDeclarationPlanner {
       source: source,
       targetFile: targetFile,
       declaration: declaration,
-      skipSuperConstructorInitializers: skipSuperConstructorInitializers,
     );
     return switch (classPlanner.decide()) {
       _MigratedClassPrimaryConstructor(:final plan) =>

@@ -16,16 +16,24 @@ When new Dart language features are introduced, you usually have the following m
 
 `dart fix` is the most desirable option, but it only works with a supported set of diagnostic codes (e.g. `--code=migrate_design_widgets`). Unfortunately, certain opt-in features (such as the new [primary constructor syntax](https://dart.dev/language/primary-constructors)) are not supported at all.
 
-This CLI was designed to fill the gap and support deterministic migrations that can be automated, using specific migration subcommands that are listed below. 👇
+This CLI was designed to fill the gap and support deterministic migrations that can be automated, using specific migration subcommands such as `primary-constructors`. 👇
 
 ### primary-constructors
 
-`primary-constructors` can be used to migrate eligible Dart classes and enhanced enums from ordinary constructor boilerplate to the new [primary constructor syntax](https://dart.dev/language/primary-constructors).
+Migrates eligible Dart classes and enhanced enums from ordinary constructor boilerplate to the new [primary constructor syntax](https://dart.dev/language/primary-constructors).
 
 Example usage:
 
 ```sh
 dart run act_dart_migrate primary-constructors <target-package>
 ```
+
+#### Example migration
+
+This CLI has been used to migrate a [forked](https://github.com/bizz84/flutter-gallery) version of the Flutter Gallery app. Here's the resulting PR with 1285 additions & 2695 deletions:
+
+- [Migrate Flutter Gallery to Dart primary constructors](https://github.com/bizz84/flutter-gallery/pull/3/changes)
+
+#### Usage
 
 See [`act_dart_migrate/README.md`](act_dart_migrate/README.md) for detailed CLI usage and package-local documentation.

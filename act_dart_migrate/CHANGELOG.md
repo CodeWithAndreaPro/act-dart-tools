@@ -1,3 +1,7 @@
+## 0.4.1
+
+- Removed the obsolete `--skip-super-constructor-initializers` Dart SDK workaround and its skip reason (no longer needed in Dart 3.13 targets).
+
 ## 0.4.0
 
 - Updated primary-constructor Target Package requirements for Dart 3.13 and removed the obsolete experiment requirement.

@@ -1274,6 +1274,7 @@ class Button(final String label) extends Widget {
 
 class Widget(Object label);
 ''');
+        await expectAnalyzerClean(root);
       },
     );
 
@@ -1288,6 +1289,8 @@ class NamedSuperInitializerProbe extends ParentProbe {
 
   NamedSuperInitializerProbe(this.id) : super.named();
 }
+
+class ParentProbe.named();
 ''');
 
         final result = await runCliPrimaryConstructors(root.path);
@@ -1301,7 +1304,10 @@ class NamedSuperInitializerProbe extends ParentProbe {
 class NamedSuperInitializerProbe(final String id) extends ParentProbe {
   this : super.named();
 }
+
+class ParentProbe.named();
 ''');
+        await expectAnalyzerClean(root);
       },
     );
 

@@ -86,13 +86,6 @@ Future<int> _runPrimaryConstructors(
       'include-skipped',
       negatable: false,
       help: 'Include skipped declarations in text output.',
-    )
-    ..addFlag(
-      primaryConstructorsSkipSuperConstructorInitializersFlag,
-      negatable: false,
-      help:
-          'Skip retained super(...) and super.named(...) initializer migrations '
-          'as a Dart SDK primary-constructor workaround.',
     );
 
   final jsonRequested = arguments.contains('--json');
@@ -130,13 +123,7 @@ Future<int> _runPrimaryConstructors(
   final root = results.rest.single;
   final targetPackageRunner =
       runner ??
-      TargetPackageRunner(
-        migration: PrimaryConstructorMigration(
-          skipSuperConstructorInitializers: results.flag(
-            primaryConstructorsSkipSuperConstructorInitializersFlag,
-          ),
-        ),
-      );
+      TargetPackageRunner(migration: const PrimaryConstructorMigration());
 
   final outcome = targetPackageRunner.run(
     TargetPackageRunRequest(root: root, dryRun: results.flag('dry-run')),
@@ -243,7 +230,6 @@ Options:
   --dry-run           Preview the migration without writing files.
   --json              Emit a machine-readable JSON report.
   --include-skipped   Include skipped declarations in text output.
-  --skip-super-constructor-initializers   Skip retained super(...) and super.named(...) initializer migrations as a Dart SDK primary-constructor workaround.
 ''';
 
 String _unknownSubcommandMessage(String subcommand) {

@@ -38,7 +38,6 @@ dart run act_dart_migrate list --json
 dart run act_dart_migrate primary-constructors <target-package> --json
 dart run act_dart_migrate primary-constructors <target-package> --dry-run
 dart run act_dart_migrate primary-constructors <target-package> --include-skipped
-dart run act_dart_migrate primary-constructors <target-package> --skip-super-constructor-initializers
 ```
 
 Running the executable without arguments prints concise usage and exits successfully. Root `--version` prints the package version without selecting a Migration Subcommand.
@@ -53,22 +52,7 @@ The required `target-package` positional argument selects the Target package roo
 
 Without `--json`, text output is concise by default and summarizes counts. `--include-skipped` expands text output with skipped declarations, skipped files, and skipped directories. `--include-skipped` does not change JSON output because JSON always includes skipped records.
 
-`--skip-super-constructor-initializers` is not enabled by default. It is an opt-in Dart SDK primary-constructor workaround for a stable-channel compiler failure seen when a migrated class has both a primary constructor and an abstract superclass whose constructor has required parameters:
-
-```dart
-abstract class Parent {
-  const Parent({required this.index});
-  final int index;
-}
-
-class const Child(final int value) extends Parent {
-  this : super(index: value);
-}
-```
-
-When enabled, the flag skips otherwise eligible class migrations whose primary-constructor body would retain an explicit `super(...)` or `super.named(...)` initializer. It does not skip classes merely because a constructor uses super parameters such as `super.key`.
-
-This flag will be deprecated or removed once the Dart SDK fix is merged to stable.
+Eligible class migrations retain explicit `super(...)` and `super.named(...)` initializers in the primary-constructor body. This syntax is supported by the Dart 3.13 Target Package minimum.
 
 ## Package Docs
 
